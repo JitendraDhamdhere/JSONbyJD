@@ -780,7 +780,7 @@ details.tree-details {
   outline: none;
 }
 
-summary.tree-summary {
+.tree-summary {
   list-style: none;
   cursor: pointer;
   display: flex;
@@ -2018,4 +2018,46 @@ body.light-theme .checkmark {
     border-bottom: 1px solid var(--border-color);
     height: 180px;
   }
+}
+
+/* FIX: Premium utility styles added for Bugs 1, 2, 3, 4 */
+.path-selected {
+  background-color: rgba(124, 92, 252, 0.25) !important;
+  border: 1px solid var(--primary-accent) !important;
+  color: #ffffff !important;
+}
+
+.search-highlight {
+  background-color: rgba(255, 235, 59, 0.35) !important;
+  border-radius: 2px;
+}
+
+.search-active {
+  background-color: rgba(255, 152, 0, 0.45) !important;
+  outline: 1px solid #ff9800;
+}
+
+.api-error-response, .api-error-response textarea {
+  color: var(--error-color) !important;
+}
+
+#jwt-payload-badge {
+  padding: 4px 8px;
+  margin: 8px 16px 4px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+#jwt-payload-badge.expired {
+  background-color: rgba(255, 74, 112, 0.15);
+  color: var(--error-color);
+  border: 1px solid var(--error-color);
+}
+
+#jwt-payload-badge.valid {
+  background-color: rgba(0, 229, 195, 0.15);
+  color: var(--success-color);
+  border: 1px solid var(--success-color);
 }

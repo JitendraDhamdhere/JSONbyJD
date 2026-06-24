@@ -55,6 +55,9 @@
 }`
   };
 
+  // Module-level variables for custom features
+  let currentSelectedPath = '';
+
   // ==========================================================================
   // TOAST NOTIFICATION SYSTEM
   // ==========================================================================
@@ -267,6 +270,81 @@
     return result;
   }
 
+  // FIX: Bug 5 — sortKeysDeep alphabetically sorts keys recursively
+  function sortKeysDeep(obj) {
+    if (Array.isArray(obj)) return obj.map(sortKeysDeep);
+    if (obj !== null && typeof obj === 'object') {
+      return Object.keys(obj).sort().reduce((acc, key) => {
+        acc[key] = sortKeysDeep(obj[key]);
+        return acc;
+      }, {});
+    }
+    return obj;
+  }
+
+  // Helper to extract path-value pairs recursively
+  function getKeyValuePairs(obj, path = '$', map = {}) {
+    if (obj === null || typeof obj !== 'object') {
+      map[path] = obj;
+    } else if (Array.isArray(obj)) {
+      if (obj.length === 0) {
+        map[path] = [];
+      } else {
+        obj.forEach((item, idx) => {
+          getKeyValuePairs(item, `${path}[${idx}]`, map);
+        });
+      }
+    } else {
+      const keys = Object.keys(obj);
+      if (keys.length === 0) {
+        map[path] = {};
+      } else {
+        keys.forEach(key => {
+          const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
+          getKeyValuePairs(obj[key], childPath, map);
+        });
+      }
+    }
+    return map;
+  }
+
+  // FIX: Bug 1 — searchJSON recursively walks the parsed JSON tree
+  function searchJSON(node, query, path = '$', keyName = null) {
+    const matches = [];
+    const lowerQuery = query.toLowerCase();
+    
+    if (node === null || typeof node !== 'object') {
+      if (String(node).toLowerCase().includes(lowerQuery)) {
+        matches.push({ path, key: keyName, value: node });
+      }
+    } else if (Array.isArray(node)) {
+      node.forEach((item, idx) => {
+        const childPath = `${path}[${idx}]`;
+        matches.push(...searchJSON(item, query, childPath, idx));
+      });
+    } else {
+      for (const key in node) {
+        if (Object.prototype.hasOwnProperty.call(node, key)) {
+          const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
+          if (key.toLowerCase().includes(lowerQuery)) {
+            matches.push({ path: childPath, key: key, value: node[key] });
+          }
+          matches.push(...searchJSON(node[key], query, childPath, key));
+        }
+      }
+    }
+    return matches;
+  }
+
+  // FIX: Bug 4 — decodeJWTPart handles URL-safe base64 strings correctly
+  function decodeJWTPart(base64url) {
+    const base64 = base64url
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(base64url.length + (4 - base64url.length % 4) % 4, '=');
+    return JSON.parse(atob(base64));
+  }
+
   // ==========================================================================
   // DRAG AND DROP & IMPORT HANDLER
   // ==========================================================================
@@ -352,8 +430,8 @@
       let normalizedB = objB;
 
       if (options.ignoreKeyOrder) {
-        normalizedA = sortObjectKeys(objA);
-        normalizedB = sortObjectKeys(objB);
+        normalizedA = sortKeysDeep(objA);
+        normalizedB = sortKeysDeep(objB);
       }
 
       const strA = JSON.stringify(normalizedA, null, 2);
@@ -694,7 +772,8 @@
       return sql;
     },
 
-    toTypeScript(obj, interfaceName = 'RootObject') {
+    // FIX: Bug 9 — toTypeScript generates full interfaces recursively
+    toTypeScript(obj, interfaceName = 'Root') {
       let interfaces = '';
       const createdInterfaces = new Set();
 
@@ -710,29 +789,30 @@
         if (createdInterfaces.has(name)) return;
         createdInterfaces.add(name);
 
-        let code = `interface ${name} {\n`;
+        let code = `export interface ${name} {\n`;
         for (const key in item) {
           if (Object.prototype.hasOwnProperty.call(item, key)) {
             const val = item[key];
             const type = typeof val;
             
             if (val === null) {
-              code += `  ${key}?: any;\n`;
+              code += `  ${key}: null;\n`;
             } else if (Array.isArray(val)) {
               if (val.length === 0) {
                 code += `  ${key}: any[];\n`;
               } else {
                 const subType = typeof val[0];
                 if (subType === 'object' && val[0] !== null) {
-                  const subName = `${name}_${key.charAt(0).toUpperCase() + key.slice(1)}Item`;
+                  const subName = key.charAt(0).toUpperCase() + key.slice(1);
                   code += `  ${key}: ${subName}[];\n`;
                   buildInterface(val[0], subName);
                 } else {
-                  code += `  ${key}: ${subType}[];\n`;
+                  const tsType = subType === 'number' ? 'number' : subType === 'boolean' ? 'boolean' : 'string';
+                  code += `  ${key}: ${tsType}[];\n`;
                 }
               }
             } else if (type === 'object') {
-              const subName = `${name}_${key.charAt(0).toUpperCase() + key.slice(1)}`;
+              const subName = key.charAt(0).toUpperCase() + key.slice(1);
               code += `  ${key}: ${subName};\n`;
               buildInterface(val, subName);
             } else {
@@ -741,14 +821,15 @@
           }
         }
         code += `}\n\n`;
-        interfaces += code;
+        interfaces = code + interfaces;
       };
 
       buildInterface(obj, interfaceName);
       return interfaces.trim();
     },
 
-    toJava(obj, className = 'RootModel') {
+    // FIX: Bug 9 — toJava generates complete POJO classes recursively
+    toJava(obj, className = 'Root') {
       let classes = '';
       const createdClasses = new Set();
 
@@ -778,14 +859,16 @@
               javaType = 'boolean';
             } else if (Array.isArray(val)) {
               if (val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
-                const subName = `${name}_${capKey}Item`;
+                const subName = capKey;
                 javaType = `List<${subName}>`;
                 buildClass(val[0], subName);
               } else {
-                javaType = `List<${val.length > 0 ? typeof val[0] : 'Object'}>`;
+                const subType = val.length > 0 ? typeof val[0] : 'Object';
+                const jt = subType === 'number' ? 'Integer' : subType === 'boolean' ? 'Boolean' : subType === 'string' ? 'String' : 'Object';
+                javaType = `List<${jt}>`;
               }
             } else if (type === 'object') {
-              const subName = `${name}_${capKey}`;
+              const subName = capKey;
               javaType = subName;
               buildClass(val, subName);
             }
@@ -798,14 +881,15 @@
           }
         }
         code += fields + methods + `}\n\n`;
-        classes += code;
+        classes = code + classes;
       };
 
       buildClass(obj, className);
       return classes.trim();
     },
 
-    toCSharp(obj, className = 'RootModel') {
+    // FIX: Bug 9 — toCSharp generates complete classes recursively with properties and attributes
+    toCSharp(obj, className = 'Root') {
       let classes = '';
       const createdClasses = new Set();
 
@@ -832,23 +916,30 @@
               csType = 'bool';
             } else if (Array.isArray(val)) {
               if (val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
-                const subName = `${name}_${capKey}Item`;
+                const subName = capKey;
                 csType = `List<${subName}>`;
                 buildClass(val[0], subName);
               } else {
-                csType = `List<${val.length > 0 ? typeof val[0] : 'object'}>`;
+                const subType = val.length > 0 ? typeof val[0] : 'object';
+                const ct = subType === 'number' ? 'int' : subType === 'boolean' ? 'bool' : subType === 'string' ? 'string' : 'object';
+                csType = `List<${ct}>`;
               }
             } else if (type === 'object') {
-              const subName = `${name}_${capKey}`;
+              const subName = capKey;
               csType = subName;
               buildClass(val, subName);
             }
 
-            code += `    public ${csType} ${capKey} { get; set; }\n`;
+            // Use JsonProperty attribute if the key is snake_case or contains non-alphanumeric chars
+            const isSnake = key.includes('_') || /^[a-z]+[A-Z]/.test(key);
+            if (isSnake) {
+              code += `    [JsonProperty("${key}")]\n`;
+            }
+            code += `    public ${csType} ${capKey} { get; set; }\n\n`;
           }
         }
-        code += `}\n\n`;
-        classes += code;
+        code = code.trimEnd() + `\n}\n\n`;
+        classes = code + classes;
       };
 
       buildClass(obj, className);
@@ -915,39 +1006,33 @@
 
   /**
    * 4. JSON Repair Engine
-   * Fixes common structural failures (missing key quotes, trailing commas, single quotes, unquoted keys).
    */
   const JSONRepairEngine = {
     repair(malformedText) {
       let txt = malformedText.trim();
       if (!txt) return '{}';
 
-      // Phase 1: Convert single quotes to double quotes, taking care of escaped quotes
-      // High accuracy tokenizer representation
+      // Phase 1: Convert single quotes to double quotes
       txt = txt.replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, '"$1"');
 
       // Phase 2: Add quotes to unquoted keys
-      // Finds key patterns { key: ... or , key:
       txt = txt.replace(/([{,]\s*)([a-zA-Z0-9_$]+)(\s*:)/g, '$1"$2"$3');
 
-      // Phase 3: Remove trailing commas before closing braces/brackets
+      // Phase 3: Remove trailing commas
       txt = txt.replace(/,\s*([\]}])/g, '$1');
 
-      // Phase 4: Fix single quotes on keys if not already done
+      // Phase 4: Fix single quotes on keys
       txt = txt.replace(/([{,]\s*)'([a-zA-Z0-9_$]+)'(\s*:)/g, '$1"$2"$3');
 
-      // Check if parsable
       try {
         const obj = JSON.parse(txt);
         return JSON.stringify(obj, null, 2);
       } catch (e) {
-        // Advanced tokenizer fallback if simple regex fails
         return this.advancedTokenRepair(malformedText);
       }
     },
 
     advancedTokenRepair(text) {
-      // Fallback utility to safely wrap quotes around unquoted elements
       let output = "";
       let inString = false;
       let stringChar = null;
@@ -960,12 +1045,12 @@
           if (!inString) {
             inString = true;
             stringChar = char;
-            output += '"'; // enforce double quotes
+            output += '"';
           } else if (char === stringChar) {
             inString = false;
             output += '"';
           } else {
-            output += '\\"'; // escape inside string
+            output += '\\"';
           }
         } else {
           output += char;
@@ -973,7 +1058,6 @@
         i++;
       }
       
-      // Clean up trailing commas and spacing
       output = output.replace(/,\s*([\]}])/g, '$1');
       return output;
     }
@@ -982,6 +1066,7 @@
   // ==========================================================================
   // CUSTOM HTML TREE GENERATOR
   // ==========================================================================
+  // FIX: Bugs 3 & 7 — HTML tree builder with click handlers and proper details/summary structure
   function generateInteractiveTreeDOM(obj, options = { onClickNode: null }) {
     const root = document.createElement('div');
     root.className = 'tree-root';
@@ -990,12 +1075,13 @@
       const node = document.createElement('div');
       node.className = 'tree-node';
 
-      const row = document.createElement('summary');
-      row.className = 'tree-summary';
-
       // Check for structural types
       const isArray = Array.isArray(val);
       const isObject = val !== null && typeof val === 'object' && !isArray;
+
+      // FIX: Bug 7 — row is a <summary> ONLY for objects/arrays, and a <div> for primitives
+      const row = (isObject || isArray) ? document.createElement('summary') : document.createElement('div');
+      row.className = 'tree-summary';
 
       if (isObject || isArray) {
         const details = document.createElement('details');
@@ -1006,8 +1092,8 @@
         arrow.className = 'tree-arrow';
         row.appendChild(arrow);
 
+        const keySpan = document.createElement('span');
         if (keyName !== null) {
-          const keySpan = document.createElement('span');
           keySpan.className = 'tree-key tree-clickable';
           keySpan.textContent = `"${keyName}"`;
           keySpan.dataset.path = path;
@@ -1051,20 +1137,41 @@
         details.appendChild(childrenContainer);
         node.appendChild(details);
 
-        // Node click handler
-        if (options.onClickNode) {
+        // FIX: Bug 3 — Click handler for keys/spans in collapsible structures
+        if (keyName !== null) {
+          keySpan.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.path-selected').forEach(el => el.classList.remove('path-selected'));
+            keySpan.classList.add('path-selected');
+            currentSelectedPath = path;
+            const pathInput = document.getElementById('path-resolved-input');
+            if (pathInput) pathInput.value = path;
+            if (options.onClickNode) {
+              options.onClickNode(path, val, keySpan);
+            }
+          });
+        }
+
+        // FIX: Bug 3 — Root summary click sets path to "$"
+        if (path === '$') {
           row.addEventListener('click', (e) => {
-            // Avoid toggling tree open state if key was clicked
-            if (e.target.classList.contains('tree-clickable')) {
-              e.preventDefault();
-              options.onClickNode(path, val, e.target);
+            if (e.target === row || e.target.classList.contains('tree-arrow') || e.target.classList.contains('tree-size-label')) {
+              e.stopPropagation();
+              document.querySelectorAll('.path-selected').forEach(el => el.classList.remove('path-selected'));
+              row.classList.add('path-selected');
+              currentSelectedPath = '$';
+              const pathInput = document.getElementById('path-resolved-input');
+              if (pathInput) pathInput.value = '$';
+              if (options.onClickNode) {
+                options.onClickNode('$', val, row);
+              }
             }
           });
         }
       } else {
         // Primitive values
+        const keySpan = document.createElement('span');
         if (keyName !== null) {
-          const keySpan = document.createElement('span');
           keySpan.className = 'tree-key tree-clickable';
           keySpan.textContent = typeof keyName === 'number' ? `[${keyName}]` : `"${keyName}"`;
           keySpan.dataset.path = path;
@@ -1091,14 +1198,32 @@
         row.appendChild(valSpan);
         node.appendChild(row);
 
-        if (options.onClickNode) {
-          row.addEventListener('click', (e) => {
-            if (e.target.classList.contains('tree-clickable')) {
-              e.preventDefault();
-              options.onClickNode(path, val, e.target);
+        // FIX: Bug 3 — Click listeners for key label and value span on primitive nodes
+        if (keyName !== null) {
+          keySpan.addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.path-selected').forEach(el => el.classList.remove('path-selected'));
+            keySpan.classList.add('path-selected');
+            currentSelectedPath = path;
+            const pathInput = document.getElementById('path-resolved-input');
+            if (pathInput) pathInput.value = path;
+            if (options.onClickNode) {
+              options.onClickNode(path, val, keySpan);
             }
           });
         }
+
+        valSpan.addEventListener('click', (e) => {
+          e.stopPropagation();
+          document.querySelectorAll('.path-selected').forEach(el => el.classList.remove('path-selected'));
+          valSpan.classList.add('path-selected');
+          currentSelectedPath = path;
+          const pathInput = document.getElementById('path-resolved-input');
+          if (pathInput) pathInput.value = path;
+          if (options.onClickNode) {
+            options.onClickNode(path, val, valSpan);
+          }
+        });
       }
 
       return node;
@@ -1153,6 +1278,17 @@
         rawContainer.classList.remove('hidden');
         treeContainer.classList.add('hidden');
         this.renderRawText();
+      });
+
+      // FIX: Bug 7 — Bind Collapse All / Expand All buttons
+      document.getElementById('viewer-collapse-all-btn').addEventListener('click', () => {
+        const details = document.querySelectorAll('#viewer-tree-output details');
+        details.forEach(d => d.open = false);
+      });
+
+      document.getElementById('viewer-expand-all-btn').addEventListener('click', () => {
+        const details = document.querySelectorAll('#viewer-tree-output details');
+        details.forEach(d => d.open = true);
       });
 
       // Actions
@@ -1373,8 +1509,6 @@
         let col = '1';
         let desc = errMsg;
 
-        // Chrome/V8 parser error parsing
-        // Example: Unexpected token o in JSON at position 4 or Expected ',' or '}' after property value in JSON at line 3 column 5
         const lineColMatch = errMsg.match(/line (\d+) column (\d+)/i);
         const posMatch = errMsg.match(/position (\d+)/i);
 
@@ -1423,6 +1557,10 @@
   // 4. JSON COMPARE (DIFF)
   App.toolRegistry['compare'] = {
     id: 'compare',
+    lastResult: null,
+    lastObjA: null,
+    lastObjB: null,
+
     init() {
       EditorManager.create('compare-editor-a');
       EditorManager.create('compare-editor-b');
@@ -1477,6 +1615,11 @@
         ignoreKeyOrder: ignoreKeys
       });
 
+      // FIX: Bug 6 — Save comparison objects and results in memory
+      this.lastObjA = objA;
+      this.lastObjB = objB;
+      this.lastResult = result;
+
       // Render summary
       const summaryBar = document.getElementById('diff-summary-output');
       summaryBar.textContent = `${result.summary.added} added · ${result.summary.removed} removed · ${result.summary.changed} changed · ${result.summary.unchanged} unchanged`;
@@ -1510,17 +1653,64 @@
       Toast.show('Comparison completed successfully', 'success');
     },
 
+    // FIX: Bug 6 — exportReport exports formatted comparison details using in-memory state
     exportReport() {
-      const summary = document.getElementById('diff-summary-output').textContent;
-      const lines = Array.from(document.querySelectorAll('.diff-line-content')).map(el => el.textContent);
-      
-      if (lines.length === 0) {
-        Toast.show('Nothing to export. Run compare first.', 'warning');
+      if (!this.lastResult || !this.lastObjA || !this.lastObjB) {
+        Toast.show('Run a comparison first', 'warning');
         return;
       }
 
-      const report = `JSON Compare Diff Report\nGenerated: ${new Date().toISOString()}\nSummary: ${summary}\n\n${lines.join('\n')}`;
-      downloadTextFile(report, 'comparison_report.txt', 'text/plain');
+      const objA = this.lastObjA;
+      const objB = this.lastObjB;
+
+      const mapA = getKeyValuePairs(objA);
+      const mapB = getKeyValuePairs(objB);
+
+      const added = [];
+      const removed = [];
+      const changed = [];
+      let unchangedCount = 0;
+
+      for (const path in mapB) {
+        const cleanPath = path.startsWith('$.') ? path.substring(2) : path;
+        if (!(path in mapA)) {
+          added.push(`+ ${cleanPath}: ${JSON.stringify(mapB[path])}`);
+        } else if (JSON.stringify(mapA[path]) !== JSON.stringify(mapB[path])) {
+          changed.push(`~ ${cleanPath}: ${JSON.stringify(mapA[path])} → ${JSON.stringify(mapB[path])}`);
+        } else {
+          unchangedCount++;
+        }
+      }
+
+      for (const path in mapA) {
+        const cleanPath = path.startsWith('$.') ? path.substring(2) : path;
+        if (!(path in mapB)) {
+          removed.push(`- ${cleanPath}: ${JSON.stringify(mapA[path])}`);
+        }
+      }
+
+      added.sort();
+      removed.sort();
+      changed.sort();
+
+      const nowStr = new Date().toISOString();
+      const report = [
+        `JSON Comparison Report`,
+        `Generated: ${nowStr}`,
+        `════════════════════════`,
+        `Summary: ${added.length} added · ${removed.length} removed · ${changed.length} changed · ${unchangedCount} unchanged`,
+        ``,
+        `ADDED KEYS:`,
+        added.length > 0 ? added.join('\n') : `(none)`,
+        ``,
+        `REMOVED KEYS:`,
+        removed.length > 0 ? removed.join('\n') : `(none)`,
+        ``,
+        `CHANGED KEYS:`,
+        changed.length > 0 ? changed.join('\n') : `(none)`
+      ].join('\n');
+
+      downloadTextFile(report, 'json-diff-report.txt', 'text/plain');
     },
 
     restoreSession() {
@@ -1533,6 +1723,7 @@
   };
 
   // 5. JSON SEARCH
+  // FIX: Bug 1 — Complete tree search rendering with recursive key/value walking and matching
   App.toolRegistry['search'] = {
     id: 'search',
     matches: [],
@@ -1544,10 +1735,12 @@
       // Drag and drop
       DragDropManager.setup(document.getElementById('tool-search'), (val) => {
         EditorManager.checkAndLoadValue('search-editor-input', 'search-fallback-input', val);
+        this.render();
       });
 
       const onContentChange = () => {
         debounce('search-save', () => this.saveSession(), 1000);
+        this.render();
       };
 
       const editor = App.editors['search-editor-input'];
@@ -1567,53 +1760,72 @@
       document.getElementById('search-next-btn').addEventListener('click', () => this.navigate(1));
     },
 
+    render() {
+      const text = EditorManager.getValue('search-editor-input', 'search-fallback-input');
+      const obj = safeParse(text);
+      const resultsList = document.getElementById('search-results-list');
+
+      if (!resultsList) return;
+
+      if (!text.trim()) {
+        resultsList.innerHTML = '<div class="search-empty-state">Enter JSON input...</div>';
+        return;
+      }
+
+      if (obj === null) {
+        resultsList.innerHTML = '<div class="search-empty-state error">Invalid JSON structure.</div>';
+        return;
+      }
+
+      resultsList.innerHTML = '';
+      const treeDOM = generateInteractiveTreeDOM(obj);
+      resultsList.appendChild(treeDOM);
+
+      // Re-run search if a query is already present
+      this.performSearch();
+    },
+
     performSearch() {
       const query = document.getElementById('search-query').value.trim();
-      const editor = App.editors['search-editor-input'];
       const resultsList = document.getElementById('search-results-list');
       const counter = document.getElementById('search-counter');
 
-      if (!editor || !query) {
+      if (!resultsList) return;
+
+      // Clear highlights on all tree elements
+      resultsList.querySelectorAll('.search-highlight').forEach(el => el.classList.remove('search-highlight'));
+      resultsList.querySelectorAll('.search-active').forEach(el => el.classList.remove('search-active'));
+
+      if (!query) {
         this.matches = [];
         this.currentIndex = -1;
         counter.textContent = '0 of 0';
-        resultsList.innerHTML = '<div class="search-empty-state">Enter a search query...</div>';
-        // Clear highlights
-        this.decorations = editor.deltaDecorations(this.decorations || [], []);
         return;
       }
 
-      const model = editor.getModel();
-      this.matches = model.findMatches(query, false, false, false, null, true);
+      const text = EditorManager.getValue('search-editor-input', 'search-fallback-input');
+      const obj = safeParse(text);
+
+      if (obj === null) {
+        this.matches = [];
+        this.currentIndex = -1;
+        counter.textContent = '0 of 0';
+        return;
+      }
+
+      // Run recursive search
+      this.matches = searchJSON(obj, query);
       this.currentIndex = this.matches.length > 0 ? 0 : -1;
 
-      counter.textContent = this.matches.length > 0 ? `1 of ${this.matches.length}` : '0 of 0';
-
-      resultsList.innerHTML = '';
       if (this.matches.length === 0) {
-        resultsList.innerHTML = '<div class="search-empty-state">No matches found.</div>';
-        this.decorations = editor.deltaDecorations(this.decorations || [], []);
+        counter.textContent = '0 of 0';
         return;
       }
 
-      // Highlight all matches in Monaco
-      const decs = this.matches.map(match => ({
-        range: match.range,
-        options: { inlineClassName: 'tree-node-selected' }
-      }));
-      this.decorations = editor.deltaDecorations(this.decorations || [], decs);
-
-      // Populate list
-      this.matches.forEach((match, idx) => {
-        const item = document.createElement('div');
-        item.className = 'search-result-item';
-        const lineText = model.getLineContent(match.range.startLineNumber);
-        item.innerHTML = `Line ${match.range.startLineNumber}: <span class="match-key">${lineText.trim()}</span>`;
-        item.addEventListener('click', () => {
-          this.currentIndex = idx;
-          this.revealActiveMatch();
-        });
-        resultsList.appendChild(item);
+      // Inject highlights
+      this.matches.forEach(match => {
+        const elements = resultsList.querySelectorAll(`[data-path="${CSS.escape(match.path)}"]`);
+        elements.forEach(el => el.classList.add('search-highlight'));
       });
 
       this.revealActiveMatch();
@@ -1626,14 +1838,25 @@
     },
 
     revealActiveMatch() {
-      const editor = App.editors['search-editor-input'];
+      const resultsList = document.getElementById('search-results-list');
       const counter = document.getElementById('search-counter');
-      if (!editor || this.currentIndex === -1) return;
+
+      if (!resultsList) return;
+
+      // Clear previous active highlight
+      resultsList.querySelectorAll('.search-active').forEach(el => el.classList.remove('search-active'));
+
+      if (this.currentIndex === -1 || this.matches.length === 0) return;
 
       const activeMatch = this.matches[this.currentIndex];
-      editor.revealRangeInCenter(activeMatch.range);
-      editor.setPosition({ lineNumber: activeMatch.range.startLineNumber, column: activeMatch.range.startColumn });
+      const elements = resultsList.querySelectorAll(`[data-path="${CSS.escape(activeMatch.path)}"]`);
       
+      elements.forEach(el => el.classList.add('search-active'));
+      
+      if (elements.length > 0) {
+        elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
       counter.textContent = `${this.currentIndex + 1} of ${this.matches.length}`;
     },
 
@@ -1645,6 +1868,7 @@
     restoreSession() {
       const val = localStorage.getItem('toolkit_session_search') || App.defaultJSON;
       EditorManager.checkAndLoadValue('search-editor-input', 'search-fallback-input', val);
+      this.render();
     }
   };
 
@@ -1672,11 +1896,14 @@
 
       document.getElementById('path-fallback-input').addEventListener('input', onContentChange);
 
-      // Copy path button
+      // FIX: Bug 3 — Copy path button reads directly from currentSelectedPath and alerts
       document.getElementById('path-copy-btn').addEventListener('click', () => {
-        const pathVal = document.getElementById('path-resolved-input').value;
-        if (pathVal) {
-          navigator.clipboard.writeText(pathVal).then(() => Toast.show('Copied JSONPath to clipboard', 'success'));
+        if (currentSelectedPath) {
+          navigator.clipboard.writeText(currentSelectedPath).then(() => {
+            Toast.show('Copied!', 'success');
+          });
+        } else {
+          Toast.show('Select a path first', 'warning');
         }
       });
     },
@@ -1701,15 +1928,7 @@
       treeOutput.innerHTML = '';
       const treeDOM = generateInteractiveTreeDOM(obj, {
         onClickNode: (path, val, targetElement) => {
-          // Update visual highlight
-          document.querySelectorAll('.tree-node-selected').forEach(el => el.classList.remove('tree-node-selected'));
-          targetElement.classList.add('tree-node-selected');
-
-          // Update input box
-          document.getElementById('path-resolved-input').value = path;
-          navigator.clipboard.writeText(path).then(() => {
-            Toast.show(`Path selected and copied: ${path}`, 'success');
-          });
+          // Visual highlighting is already handled inside the click listener of generateInteractiveTreeDOM
         }
       });
 
@@ -1863,13 +2082,13 @@
           output = DataConverters.toSQL(obj);
           break;
         case 'typescript':
-          output = DataConverters.toTypeScript(obj);
+          output = DataConverters.toTypeScript(obj, 'Root');
           break;
         case 'java':
-          output = DataConverters.toJava(obj);
+          output = DataConverters.toJava(obj, 'Root');
           break;
         case 'csharp':
-          output = DataConverters.toCSharp(obj);
+          output = DataConverters.toCSharp(obj, 'Root');
           break;
         case 'python':
           output = DataConverters.toPython(obj);
@@ -1960,8 +2179,6 @@
         result = sortObjectKeys(result);
         msg = 'Keys sorted alphabetically';
       } else if (action === 'dup') {
-        // Standard parse automatically removes duplicates, keeping the last one.
-        // We can just format back the parsed structure
         msg = 'Duplicate keys resolved';
       } else if (action === 'null') {
         result = this.removeNulls(result);
@@ -2137,6 +2354,24 @@
   };
 
   // 11. JSON MERGE TOOL
+  // FIX: Bug 8 — deepMerge supports array concatenation in merge-arrays mode
+  function mergeDeep(target, source, mode) {
+    for (const key of Object.keys(source)) {
+      if (mode === 'merge-arrays' 
+          && Array.isArray(target[key]) 
+          && Array.isArray(source[key])) {
+        target[key] = [...target[key], ...source[key]];
+      } else if (typeof source[key] === 'object' && source[key] !== null
+                 && typeof target[key] === 'object' && target[key] !== null
+                 && !Array.isArray(source[key])) {
+        mergeDeep(target[key], source[key], mode);
+      } else if (mode === 'override' || !(key in target)) {
+        target[key] = source[key];
+      }
+    }
+    return target;
+  }
+
   App.toolRegistry['merge'] = {
     id: 'merge',
     panelsCount: 0,
@@ -2230,6 +2465,7 @@
     runMerge() {
       const objectsToMerge = [];
       const strategy = document.getElementById('merge-conflict-select').value;
+      const mode = strategy === 'arrays' ? 'merge-arrays' : strategy;
 
       // Extract all valid JSON values
       for (let i = 1; i <= 3; i++) {
@@ -2252,40 +2488,15 @@
         return;
       }
 
-      // Merge logic
-      let result = objectsToMerge[0];
+      // Merge logic - clone target and source elements to prevent mutation of the originals
+      let result = deepClone(objectsToMerge[0]);
       for (let i = 1; i < objectsToMerge.length; i++) {
-        result = this.deepMerge(result, objectsToMerge[i], strategy);
+        result = mergeDeep(result, deepClone(objectsToMerge[i]), mode);
       }
 
       const outputStr = JSON.stringify(result, null, 2);
       EditorManager.checkAndLoadValue('merge-editor-output', 'merge-fallback-output', outputStr);
       Toast.show('Successfully merged JSON documents', 'success');
-    },
-
-    deepMerge(target, source, strategy) {
-      if (target === null || typeof target !== 'object' || source === null || typeof source !== 'object') {
-        return strategy === 'keep' ? target : source;
-      }
-
-      if (Array.isArray(target) && Array.isArray(source)) {
-        if (strategy === 'arrays') {
-          return target.concat(source);
-        }
-        return strategy === 'keep' ? target : source;
-      }
-
-      const result = Object.assign({}, target);
-      for (const key in source) {
-        if (Object.prototype.hasOwnProperty.call(source, key)) {
-          if (key in target) {
-            result[key] = this.deepMerge(target[key], source[key], strategy);
-          } else {
-            result[key] = source[key];
-          }
-        }
-      }
-      return result;
     },
 
     restoreSession() {
@@ -2517,6 +2728,7 @@
   };
 
   // 13. API RESPONSE VIEWER
+  // FIX: Bug 2 — Complete API Response Viewer with CORS proxying, error styling, response timing, and request body support
   App.toolRegistry['apiviewer'] = {
     id: 'apiviewer',
     init() {
@@ -2567,14 +2779,23 @@
       const timeBadge = document.getElementById('api-res-time');
       const headersTable = document.getElementById('api-headers-table').querySelector('tbody');
       
-      statusBadge.className = 'status-badge';
-      statusBadge.textContent = 'PENDING';
-      timeBadge.textContent = '-- ms';
-      headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers">Loading...</td></tr>`;
+      const resEditor = document.getElementById('api-editor-response');
+      const resFallback = document.getElementById('api-fallback-response');
+      
+      if (resEditor) resEditor.classList.remove('api-error-response');
+      if (resFallback) resFallback.classList.remove('api-error-response');
 
-      let fetchPromise = null;
+      // Loading state
+      statusBadge.className = 'status-badge';
+      statusBadge.textContent = '...';
+      timeBadge.textContent = '...ms';
+      headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers">Loading...</td></tr>`;
+      
+      EditorManager.checkAndLoadValue('api-editor-response', 'api-fallback-response', 'Fetching...');
+
       const options = { method };
 
+      // Handle POST requests and include request body editor content
       if (method === 'POST' && document.getElementById('api-body-toggle').checked) {
         const bodyContent = EditorManager.getValue('api-editor-request', 'api-fallback-request');
         if (bodyContent.trim()) {
@@ -2583,58 +2804,63 @@
         }
       }
 
-      const startTime = performance.now();
+      const startTime = Date.now();
+      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`;
 
-      // Primary fetch
-      fetchPromise = fetch(rawUrl, options)
-        .catch(() => {
-          // Fallback to CORS proxy
-          const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`;
-          return fetch(proxyUrl, options);
+      // Execute request with CORS proxy wrapping
+      fetch(proxyUrl, options)
+        .then(async (response) => {
+          const duration = Date.now() - startTime;
+          timeBadge.textContent = `${duration} ms`;
+
+          // Populate Status badge with status + statusText
+          statusBadge.textContent = `${response.status} ${response.statusText || ''}`.trim();
+          statusBadge.className = 'status-badge';
+          
+          if (response.status >= 200 && response.status < 300) {
+            statusBadge.classList.add('success'); // green
+          } else if (response.status >= 300 && response.status < 400) {
+            statusBadge.style.backgroundColor = 'rgba(255, 185, 56, 0.15)'; // amber
+            statusBadge.style.color = 'var(--warning-color)';
+          } else {
+            statusBadge.classList.add('error'); // red
+          }
+
+          // Populate Headers table
+          headersTable.innerHTML = '';
+          response.headers.forEach((val, name) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td>${name}</td><td>${val}</td>`;
+            headersTable.appendChild(row);
+          });
+
+          if (headersTable.children.length === 0) {
+            headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers">No response headers</td></tr>`;
+          }
+
+          // Read response as text first, then attempt JSON parse
+          const bodyText = await response.text();
+          const parsed = safeParse(bodyText);
+          const outVal = parsed ? JSON.stringify(parsed, null, 2) : bodyText;
+          
+          EditorManager.checkAndLoadValue('api-editor-response', 'api-fallback-response', outVal);
+          Toast.show('API response received successfully', 'success');
+        })
+        .catch(err => {
+          const duration = Date.now() - startTime;
+          timeBadge.textContent = `${duration} ms`;
+          
+          statusBadge.textContent = 'ERR';
+          statusBadge.className = 'status-badge error';
+          headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers error">Request Failed</td></tr>`;
+          
+          // Show error message in red in the response body panel
+          if (resEditor) resEditor.classList.add('api-error-response');
+          if (resFallback) resFallback.classList.add('api-error-response');
+
+          EditorManager.checkAndLoadValue('api-editor-response', 'api-fallback-response', `Error: ${err.message}`);
+          Toast.show('API request failed: ' + err.message, 'error');
         });
-
-      fetchPromise.then(response => {
-        const endTime = performance.now();
-        const duration = (endTime - startTime).toFixed(0);
-        timeBadge.textContent = `${duration} ms`;
-
-        // Status badge
-        statusBadge.textContent = response.status;
-        if (response.ok) {
-          statusBadge.classList.add('success');
-        } else {
-          statusBadge.classList.add('error');
-        }
-
-        // Headers
-        headersTable.innerHTML = '';
-        response.headers.forEach((val, name) => {
-          const row = document.createElement('tr');
-          row.innerHTML = `<td>${name}</td><td>${val}</td>`;
-          headersTable.appendChild(row);
-        });
-
-        if (headersTable.children.length === 0) {
-          headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers">No response headers</td></tr>`;
-        }
-
-        // Parse Response Body
-        return response.text();
-      })
-      .then(bodyText => {
-        const parsed = safeParse(bodyText);
-        const outVal = parsed ? JSON.stringify(parsed, null, 2) : bodyText;
-        EditorManager.checkAndLoadValue('api-editor-response', 'api-fallback-response', outVal);
-        
-        Toast.show('API response received successfully', 'success');
-      })
-      .catch(err => {
-        statusBadge.textContent = 'ERR';
-        statusBadge.classList.add('error');
-        headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers error">Request Failed</td></tr>`;
-        EditorManager.checkAndLoadValue('api-editor-response', 'api-fallback-response', err.message);
-        Toast.show('API request failed', 'error');
-      });
     },
 
     restoreSession() {}
@@ -2703,54 +2929,89 @@
     },
 
     // 14.2 JWT Decoder
+    // FIX: Bug 4 — JWT Decoder with URL-safe base64 decoding, signature warnings, and token expiry checking
     initJWT() {
       const tokenInput = document.getElementById('jwt-token-input');
       
       const decodeJWT = () => {
         const val = tokenInput.value.trim();
-        if (!val) return;
+        
+        const headerCode = document.getElementById('jwt-header-out');
+        const payloadCode = document.getElementById('jwt-payload-out');
+        const signatureCode = document.getElementById('jwt-sig-out');
+        
+        // Remove active expiry badge if exists
+        const existingBadge = document.getElementById('jwt-payload-badge');
+        if (existingBadge) existingBadge.remove();
 
-        const parts = val.split('.');
-        if (parts.length !== 3) {
-          Toast.show('Invalid JWT token structure (must contain 3 parts)', 'warning');
+        if (!val) {
+          headerCode.textContent = '{}';
+          payloadCode.textContent = '{}';
+          signatureCode.textContent = '{}';
           return;
         }
 
-        try {
-          const decodePart = (str) => {
-            // Replace url safe chars
-            let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
-            // Pad to multiple of 4
-            while (base64.length % 4) base64 += '=';
-            return decodeURIComponent(escape(atob(base64)));
-          };
-
-          const header = decodePart(parts[0]);
-          const payload = decodePart(parts[1]);
-          const signature = parts[2];
-
-          // Format output blocks
-          const headerCode = document.getElementById('jwt-header-out');
-          const payloadCode = document.getElementById('jwt-payload-out');
-          const signatureCode = document.getElementById('jwt-sig-out');
-
-          headerCode.textContent = formatJSON(header);
-          payloadCode.textContent = formatJSON(payload);
-          signatureCode.textContent = JSON.stringify({
-            signatureHex: signature,
-            message: "JWT signature verified structural integrity. Cryptographic verify requires server keys."
-          }, null, 2);
-
-          if (window.hljs) {
-            hljs.highlightElement(headerCode);
-            hljs.highlightElement(payloadCode);
-            hljs.highlightElement(signatureCode);
-          }
-
-          Toast.show('Decoded JWT Token', 'success');
-        } catch (e) {
-          Toast.show('Failed to decode JWT: structural corruption', 'error');
+        const parts = val.split('.');
+        if (parts.length !== 3) {
+          const errorMsg = "Invalid JWT format — expected 3 segments";
+          headerCode.innerHTML = `<span style="color: var(--error-color)">${errorMsg}</span>`;
+          payloadCode.innerHTML = `<span style="color: var(--error-color)">${errorMsg}</span>`;
+          signatureCode.textContent = '';
+          Toast.show(errorMsg, 'warning');
+          return;
         }
+
+        let headerObj = null;
+        let payloadObj = null;
+
+        // 1. Decode and Format Header
+        try {
+          headerObj = decodeJWTPart(parts[0]);
+          headerCode.textContent = JSON.stringify(headerObj, null, 2);
+        } catch (e) {
+          headerCode.innerHTML = `<span style="color: var(--error-color)">Error decoding Header: ${e.message}</span>`;
+        }
+
+        // 2. Decode, Format, and Validate Payload
+        try {
+          payloadObj = decodeJWTPart(parts[1]);
+          payloadCode.textContent = JSON.stringify(payloadObj, null, 2);
+          
+          // Check Token Expiration (exp unix epoch seconds)
+          if (payloadObj && typeof payloadObj.exp === 'number') {
+            const expTime = payloadObj.exp;
+            const now = Date.now() / 1000;
+            const isExpired = now > expTime;
+            
+            const badge = document.createElement('div');
+            badge.id = 'jwt-payload-badge';
+            const expDate = new Date(expTime * 1000).toLocaleString();
+            
+            if (isExpired) {
+              badge.className = 'expired';
+              badge.textContent = `Token Expired (expired on: ${expDate})`;
+            } else {
+              badge.className = 'valid';
+              badge.textContent = `Token Valid (expires on: ${expDate})`;
+            }
+            
+            // Insert badge directly above the payload pre block inside the payload card
+            payloadCode.parentElement.insertBefore(badge, payloadCode);
+          }
+        } catch (e) {
+          payloadCode.innerHTML = `<span style="color: var(--error-color)">Error decoding Payload: ${e.message}</span>`;
+        }
+
+        // 3. Render Signature Note
+        signatureCode.textContent = "Signature (base64url encoded):\n" + parts[2] + "\n\nNote: Signature verification requires the secret key and cannot be done client-side.";
+
+        if (window.hljs) {
+          hljs.highlightElement(headerCode);
+          hljs.highlightElement(payloadCode);
+          hljs.highlightElement(signatureCode);
+        }
+
+        Toast.show('Decoded JWT Token', 'success');
       };
 
       tokenInput.addEventListener('input', () => debounce('jwt-dec', decodeJWT, 400));
