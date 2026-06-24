@@ -674,75 +674,383 @@
              TOOL 13: API RESPONSE VIEWER
              ============================================== -->
         <div id="tool-apiviewer" class="tool-panel">
-          <div class="panel-layout vertical-split-layout">
-            <div class="api-request-bar">
-              <label for="api-method" class="hidden-label">HTTP Method</label>
-              <select id="api-method" class="select-dropdown api-method-select">
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-              </select>
-              <input type="url" id="api-url" class="input-text api-url-input" placeholder="Enter endpoint URL (e.g. https://jsonplaceholder.typicode.com/todos/1)">
-              <button class="btn btn-accent" id="api-send-btn">Send Request</button>
-            </div>
+          <div class="api-workspace-layout">
             
-            <div class="api-request-body-toggle-box">
-              <label class="checkbox-container">
-                <input type="checkbox" id="api-body-toggle">
-                <span class="checkmark"></span>
-                Include Request Body (JSON)
-              </label>
-            </div>
-            
-            <div class="api-request-body-container hidden" id="api-body-editor-wrap">
-              <div class="panel-header">
-                <h3>Request Body (JSON)</h3>
+            <!-- API WORKSPACE SIDEBAR -->
+            <aside class="api-sidebar" id="api-sidebar">
+              <div class="api-sidebar-header">
+                <span class="api-sidebar-title">Workspace</span>
+                <button class="api-sidebar-toggle" id="api-sidebar-toggle-btn" title="Collapse Sidebar">◂</button>
               </div>
-              <div class="editor-container api-req-editor" id="api-editor-request"></div>
-              <textarea class="fallback-textarea hidden" id="api-fallback-request" aria-label="API Request Body Fallback"></textarea>
-            </div>
-            
-            <div class="api-response-dashboard">
-              <div class="api-meta-summary">
-                <div class="meta-item">
-                  <span class="meta-label">Status:</span>
-                  <span class="status-badge" id="api-res-status">--</span>
+              
+              <!-- Sidebar Tabs -->
+              <div class="api-sidebar-tabs">
+                <button class="api-sidebar-tab-btn active" data-tab="history">History</button>
+                <button class="api-sidebar-tab-btn" data-tab="saved">Saved</button>
+                <button class="api-sidebar-tab-btn" data-tab="collections">Collections</button>
+              </div>
+              
+              <div class="api-sidebar-content custom-scrollbar">
+                <!-- History Section -->
+                <div class="api-sidebar-pane active" id="api-pane-history">
+                  <div class="api-sidebar-actions-row">
+                    <button class="btn-sm btn-outline" id="api-clear-history-btn">Clear All</button>
+                  </div>
+                  <ul class="api-sidebar-list" id="api-history-list">
+                    <li class="empty-placeholder">No request history</li>
+                  </ul>
                 </div>
-                <div class="meta-item">
-                  <span class="meta-label">Time:</span>
-                  <span class="status-badge" id="api-res-time">-- ms</span>
+                
+                <!-- Saved Section -->
+                <div class="api-sidebar-pane" id="api-pane-saved">
+                  <ul class="api-sidebar-list" id="api-saved-list">
+                    <li class="empty-placeholder">No saved requests</li>
+                  </ul>
+                </div>
+                
+                <!-- Collections Section -->
+                <div class="api-sidebar-pane" id="api-pane-collections">
+                  <div class="api-sidebar-actions-row">
+                    <button class="btn-sm btn-outline" id="api-new-collection-btn">+ New Collection</button>
+                  </div>
+                  <ul class="api-sidebar-list" id="api-collections-list">
+                    <li class="empty-placeholder">No collections created</li>
+                  </ul>
+                </div>
+              </div>
+            </aside>
+            
+            <!-- MAIN TESTING WORKSPACE -->
+            <div class="api-main-workspace">
+              <!-- Top Request Bar -->
+              <div class="api-request-bar-container">
+                <div class="api-request-bar-input-group">
+                  <select id="api-method" class="select-dropdown api-method-select">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="OPTIONS">OPTIONS</option>
+                    <option value="HEAD">HEAD</option>
+                  </select>
+                  <input type="url" id="api-url" class="input-text api-url-input" placeholder="Enter endpoint URL (e.g. https://jsonplaceholder.typicode.com/todos/1)">
+                  <button class="btn btn-accent" id="api-send-btn">Send</button>
+                  <button class="btn btn-outline" id="api-save-btn" title="Save to Collections">Save</button>
+                  <button class="btn btn-outline" id="api-clear-btn" title="Clear Workspace">Clear</button>
                 </div>
               </div>
               
-              <div class="api-details-split">
-                <div class="api-headers-pane">
-                  <h4>Response Headers</h4>
-                  <div class="headers-table-wrapper custom-scrollbar">
-                    <table class="headers-table" id="api-headers-table">
-                      <thead>
-                        <tr>
-                          <th>Header</th>
-                          <th>Value</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td colspan="2" class="empty-headers">No response headers loaded</td>
-                        </tr>
-                      </tbody>
-                    </table>
+              <!-- Request Config Tabs -->
+              <div class="api-config-tabs-container">
+                <div class="api-config-tabs">
+                  <button class="api-config-tab-btn active" data-config="params">Params</button>
+                  <button class="api-config-tab-btn" data-config="headers">Headers</button>
+                  <button class="api-config-tab-btn" data-config="body">Body</button>
+                  <button class="api-config-tab-btn" data-config="auth">Auth</button>
+                </div>
+                
+                <div class="api-config-content">
+                  <!-- Params Config Panel -->
+                  <div class="api-config-panel active" id="api-config-params">
+                    <div class="table-header-row">
+                      <span>Query Parameters</span>
+                      <button class="btn-sm btn-outline" id="api-param-add-btn">+ Add Param</button>
+                    </div>
+                    <div class="api-table-wrapper custom-scrollbar">
+                      <table class="api-config-table" id="api-params-table">
+                        <thead>
+                          <tr>
+                            <th style="width: 40px; text-align: center;"></th>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th style="width: 60px; text-align: center;"></th>
+                          </tr>
+                        </thead>
+                        <tbody id="api-params-tbody">
+                          <!-- Dynamic parameter rows -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  
+                  <!-- Headers Config Panel -->
+                  <div class="api-config-panel" id="api-config-headers">
+                    <div class="table-header-row">
+                      <span>Request Headers</span>
+                      <button class="btn-sm btn-outline" id="api-header-add-btn">+ Add Header</button>
+                    </div>
+                    <div class="api-table-wrapper custom-scrollbar">
+                      <table class="api-config-table" id="api-headers-table-input">
+                        <thead>
+                          <tr>
+                            <th style="width: 40px; text-align: center;"></th>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th style="width: 60px; text-align: center;"></th>
+                          </tr>
+                        </thead>
+                        <tbody id="api-headers-tbody">
+                          <!-- Dynamic header rows -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  
+                  <!-- Body Config Panel -->
+                  <div class="api-config-panel" id="api-config-body">
+                    <div class="api-body-type-bar">
+                      <div class="api-body-types">
+                        <label class="radio-container">
+                          <input type="radio" name="api-body-type" value="none" checked>
+                          <span class="radio-check"></span> none
+                        </label>
+                        <label class="radio-container">
+                          <input type="radio" name="api-body-type" value="json">
+                          <span class="radio-check"></span> JSON
+                        </label>
+                        <label class="radio-container">
+                          <input type="radio" name="api-body-type" value="form">
+                          <span class="radio-check"></span> Form Data
+                        </label>
+                        <label class="radio-container">
+                          <input type="radio" name="api-body-type" value="raw">
+                          <span class="radio-check"></span> Raw Text
+                        </label>
+                      </div>
+                      
+                      <!-- Hidden checkbox to satisfy existing JS event listeners if any -->
+                      <label class="checkbox-container" style="margin: 0; display: none;">
+                        <input type="checkbox" id="api-body-toggle">
+                        <span class="checkmark"></span> Include Request Body (JSON)
+                      </label>
+                    </div>
+                    
+                    <!-- Body Editors -->
+                    <div class="api-body-editor-container hidden" id="api-body-editor-wrap">
+                      <div class="editor-container api-req-editor" id="api-editor-request"></div>
+                      <textarea class="fallback-textarea hidden" id="api-fallback-request" aria-label="API Request Body Fallback"></textarea>
+                    </div>
+                    
+                    <!-- Form Data Table -->
+                    <div class="api-body-form-container hidden" id="api-body-form-wrap">
+                      <div class="table-header-row">
+                        <span>Form Fields</span>
+                        <button class="btn-sm btn-outline" id="api-form-add-btn">+ Add Field</button>
+                      </div>
+                      <div class="api-table-wrapper custom-scrollbar">
+                        <table class="api-config-table" id="api-form-table">
+                          <thead>
+                            <tr>
+                              <th style="width: 40px; text-align: center;"></th>
+                              <th>Key</th>
+                              <th>Value</th>
+                              <th style="width: 60px; text-align: center;"></th>
+                            </tr>
+                          </thead>
+                          <tbody id="api-form-tbody">
+                            <!-- Dynamic form rows -->
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Auth Config Panel -->
+                  <div class="api-config-panel" id="api-config-auth">
+                    <div class="api-auth-type-bar">
+                      <label for="api-auth-type">Authorization Type</label>
+                      <select id="api-auth-type" class="select-dropdown">
+                        <option value="none">No Auth</option>
+                        <option value="bearer">Bearer Token</option>
+                        <option value="basic">Basic Auth</option>
+                        <option value="apikey">API Key</option>
+                      </select>
+                    </div>
+                    
+                    <div class="api-auth-forms-container">
+                      <!-- No Auth -->
+                      <div class="api-auth-form-pane active" id="api-auth-form-none">
+                        <div class="api-auth-info-card">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                          <span>This request does not use any authorization.</span>
+                        </div>
+                      </div>
+                      
+                      <!-- Bearer Token -->
+                      <div class="api-auth-form-pane" id="api-auth-form-bearer">
+                        <div class="api-auth-row">
+                          <label for="api-auth-bearer-token">Token</label>
+                          <input type="text" id="api-auth-bearer-token" class="input-text font-code" placeholder="Enter Bearer Token">
+                        </div>
+                      </div>
+                      
+                      <!-- Basic Auth -->
+                      <div class="api-auth-form-pane" id="api-auth-form-basic">
+                        <div class="api-auth-row">
+                          <label for="api-auth-basic-username">Username</label>
+                          <input type="text" id="api-auth-basic-username" class="input-text" placeholder="Username">
+                        </div>
+                        <div class="api-auth-row">
+                          <label for="api-auth-basic-password">Password</label>
+                          <input type="password" id="api-auth-basic-password" class="input-text" placeholder="Password">
+                        </div>
+                      </div>
+                      
+                      <!-- API Key -->
+                      <div class="api-auth-form-pane" id="api-auth-form-apikey">
+                        <div class="api-auth-row">
+                          <label for="api-auth-apikey-key">Key</label>
+                          <input type="text" id="api-auth-apikey-key" class="input-text font-code" placeholder="e.g. X-API-Key">
+                        </div>
+                        <div class="api-auth-row">
+                          <label for="api-auth-apikey-value">Value</label>
+                          <input type="text" id="api-auth-apikey-value" class="input-text font-code" placeholder="Enter Key Value">
+                        </div>
+                        <div class="api-auth-row">
+                          <label for="api-auth-apikey-addTo">Add to</label>
+                          <select id="api-auth-apikey-addTo" class="select-dropdown">
+                            <option value="header">Header</option>
+                            <option value="query">Query Params</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Developer Tools Bar -->
+              <div class="api-developer-tools-bar">
+                <button class="btn-sm btn-outline" id="api-copy-curl-btn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  Copy cURL
+                </button>
+                <button class="btn-sm btn-outline" id="api-gen-fetch-btn">Generate Fetch</button>
+                <button class="btn-sm btn-outline" id="api-gen-axios-btn">Generate Axios</button>
+                <button class="btn-sm btn-outline" id="api-import-body-btn">Import Body JSON</button>
+              </div>
+              
+              <!-- Response Area -->
+              <div class="api-response-dashboard">
+                <!-- Response Header Metrics -->
+                <div class="api-response-metrics-bar hidden" id="api-res-metrics-bar">
+                  <div class="api-res-metrics-left">
+                    <span class="status-badge" id="api-res-status">--</span>
+                    <span class="metric-item" id="api-res-time">-- ms</span>
+                    <span class="metric-item" id="api-res-size">-- KB</span>
+                    <span class="metric-item font-code" id="api-res-content-type">--</span>
+                  </div>
+                  <div class="api-res-metrics-right">
+                    <button class="btn-sm btn-outline" id="api-copy-btn">Copy Response</button>
+                    <button class="btn-sm btn-outline" id="api-download-btn">Download</button>
                   </div>
                 </div>
                 
-                <div class="api-body-pane">
-                  <div class="panel-header">
-                    <h4>Response Body</h4>
-                    <div class="panel-header-actions">
-                      <button class="btn-sm btn-outline" id="api-copy-btn">Copy</button>
-                      <button class="btn-sm btn-outline" id="api-download-btn">Download</button>
+                <!-- Response Tabs Bar (hidden by default until response received) -->
+                <div class="api-response-tabs-container hidden" id="api-res-tabs-container">
+                  <div class="api-response-tabs">
+                    <button class="api-response-tab-btn active" data-resp="pretty">Pretty</button>
+                    <button class="api-response-tab-btn" data-resp="raw">Raw</button>
+                    <button class="api-response-tab-btn" data-resp="headers">Headers</button>
+                  </div>
+                  
+                  <div class="api-response-content">
+                    <!-- Pretty Panel -->
+                    <div class="api-response-panel active" id="api-resp-panel-pretty">
+                      <div class="api-pretty-toolbar">
+                        <div class="api-pretty-search-box">
+                          <input type="text" id="api-pretty-search-input" class="input-text btn-sm" placeholder="Search keys or values...">
+                          <span class="api-pretty-search-count" id="api-pretty-search-count">0 of 0</span>
+                          <button class="btn-sm btn-outline" id="api-pretty-search-prev-btn">▲</button>
+                          <button class="btn-sm btn-outline" id="api-pretty-search-next-btn">▼</button>
+                        </div>
+                        <div class="api-pretty-actions">
+                          <button class="btn-sm btn-outline" id="api-pretty-collapse-btn">Collapse All</button>
+                          <button class="btn-sm btn-outline" id="api-pretty-expand-btn">Expand All</button>
+                        </div>
+                      </div>
+                      <div class="output-container" id="api-res-tree-container">
+                        <div class="tree-wrapper custom-scrollbar" id="api-res-tree-output"></div>
+                      </div>
+                    </div>
+                    
+                    <!-- Raw Panel -->
+                    <div class="api-response-panel" id="api-resp-panel-raw">
+                      <div class="api-raw-toolbar">
+                        <label class="checkbox-container" style="margin: 0;">
+                          <input type="checkbox" id="api-raw-wrap-toggle" checked>
+                          <span class="checkmark"></span> Word Wrap
+                        </label>
+                      </div>
+                      <div class="editor-container api-res-editor" id="api-editor-response"></div>
+                      <textarea class="fallback-textarea hidden" id="api-fallback-response" aria-label="API Response Body Fallback" readonly></textarea>
+                    </div>
+                    
+                    <!-- Headers Panel -->
+                    <div class="api-response-panel" id="api-resp-panel-headers">
+                      <div class="headers-table-wrapper custom-scrollbar">
+                        <table class="headers-table" id="api-headers-table">
+                          <thead>
+                            <tr>
+                              <th>Header Name</th>
+                              <th>Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td colspan="2" class="empty-headers">No response headers loaded</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
-                  <div class="editor-container api-res-editor" id="api-editor-response"></div>
-                  <textarea class="fallback-textarea hidden" id="api-fallback-response" aria-label="API Response Body Fallback" readonly></textarea>
+                </div>
+                
+                <!-- Empty State -->
+                <div class="api-response-empty-state" id="api-res-empty-state">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5"><polygon points="5 3 19 3 23 8 23 21 1 21 1 8 5 3"></polygon><polyline points="23 8 1 8"></polyline><path d="M16 12a4 4 0 0 1-8 0"></path></svg>
+                  <h4>No Response Yet</h4>
+                  <p>Enter an endpoint URL and click Send to execute your API request.</p>
+                </div>
+                
+                <!-- Loading State (Skeletons) -->
+                <div class="api-response-loading-state hidden" id="api-res-loading-state">
+                  <div class="skeleton-metric-bar">
+                    <div class="skeleton-item skeleton-badge"></div>
+                    <div class="skeleton-item skeleton-text-sm" style="width: 80px;"></div>
+                    <div class="skeleton-item skeleton-text-sm" style="width: 60px;"></div>
+                  </div>
+                  <div class="skeleton-body">
+                    <div class="skeleton-line skeleton-animation"></div>
+                    <div class="skeleton-line skeleton-animation" style="width: 90%;"></div>
+                    <div class="skeleton-line skeleton-animation" style="width: 75%;"></div>
+                    <div class="skeleton-line skeleton-animation" style="width: 85%;"></div>
+                    <div class="skeleton-line skeleton-animation" style="width: 60%;"></div>
+                  </div>
+                </div>
+                
+                <!-- Error State Card -->
+                <div class="api-response-error-state hidden" id="api-res-error-state">
+                  <div class="api-error-card">
+                    <div class="api-error-card-header">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--error-color)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                      <h4 id="api-error-title">Request Failed</h4>
+                    </div>
+                    <div class="api-error-card-body">
+                      <p id="api-error-message">An error occurred while executing the API request.</p>
+                      <div class="api-error-troubleshoot">
+                        <h5>Troubleshooting Tips:</h5>
+                        <ul>
+                          <li>Check if the target URL is correct and includes the proper protocol (`http://` or `https://`).</li>
+                          <li>Verify that your internet connection is active and stable.</li>
+                          <li>If targetting local endpoints, ensure the service is running and accessible.</li>
+                          <li>CORS security headers may block certain requests; check the browser console for CORS error messages.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

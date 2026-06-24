@@ -2731,39 +2731,1065 @@
   // FIX: Bug 2 — Complete API Response Viewer with CORS proxying, error styling, response timing, and request body support
   App.toolRegistry['apiviewer'] = {
     id: 'apiviewer',
+    params: [],
+    headers: [],
+    formFields: [],
+    history: [],
+    saved: [],
+    collections: [],
+    activeSidebarTab: 'history',
+    activeConfigTab: 'params',
+    activeResponseTab: 'pretty',
+    activeAuthType: 'none',
+    activeBodyType: 'none',
+    prettySearchMatches: [],
+    prettySearchIndex: -1,
+
     init() {
+      // 1. Initialize Monaco Editors
       EditorManager.create('api-editor-request');
       EditorManager.create('api-editor-response', { readOnly: true });
 
-      // Request Body toggle
-      const bodyToggle = document.getElementById('api-body-toggle');
-      bodyToggle.addEventListener('change', () => {
-        const wrap = document.getElementById('api-body-editor-wrap');
-        if (bodyToggle.checked) {
-          wrap.classList.remove('hidden');
-        } else {
-          wrap.classList.add('hidden');
-        }
-      });
+      // 2. Load Storage Data
+      this.loadStorageData();
 
-      // Default URL
+      // 3. Setup UI Element Listeners
+      this.setupWorkspaceListeners();
+      this.setupSidebarListeners();
+      this.setupConfigTabListeners();
+      this.setupAuthListeners();
+      this.setupBodyListeners();
+      this.setupDevToolsListeners();
+      this.setupResponseListeners();
+
+      // 4. Default State
       document.getElementById('api-url').value = 'https://jsonplaceholder.typicode.com/todos/1';
-
-      // Default Request Body JSON
       EditorManager.checkAndLoadValue('api-editor-request', 'api-fallback-request', `{\n  "title": "New Todo Task",\n  "completed": false\n}`);
 
-      // Run Fetch
-      document.getElementById('api-send-btn').addEventListener('click', () => this.runFetch());
+      // Initialize one empty row in each table
+      this.addParamRow('', '', true, true);
+      this.addHeaderRow('', '', true);
+      this.addFormRow('', '', true);
 
-      document.getElementById('api-copy-btn').addEventListener('click', () => {
-        const val = EditorManager.getValue('api-editor-response', 'api-fallback-response');
-        if (val) navigator.clipboard.writeText(val).then(() => Toast.show('Response copied', 'success'));
+      // Render lists in sidebar
+      this.renderHistory();
+      this.renderSaved();
+      this.renderCollections();
+    },
+
+    loadStorageData() {
+      try {
+        this.history = JSON.parse(localStorage.getItem('toolkit_api_history')) || [];
+        this.saved = JSON.parse(localStorage.getItem('toolkit_api_saved')) || [];
+        this.collections = JSON.parse(localStorage.getItem('toolkit_api_collections')) || [];
+      } catch (e) {
+        this.history = [];
+        this.saved = [];
+        this.collections = [];
+      }
+    },
+
+    saveStorageData() {
+      localStorage.setItem('toolkit_api_history', JSON.stringify(this.history));
+      localStorage.setItem('toolkit_api_saved', JSON.stringify(this.saved));
+      localStorage.setItem('toolkit_api_collections', JSON.stringify(this.collections));
+    },
+
+    setupWorkspaceListeners() {
+      // Sidebar collapse toggle
+      const sidebarToggle = document.getElementById('api-sidebar-toggle-btn');
+      const sidebar = document.getElementById('api-sidebar');
+      if (sidebarToggle && sidebar) {
+        sidebarToggle.addEventListener('click', () => {
+          sidebar.classList.toggle('collapsed');
+          sidebarToggle.textContent = sidebar.classList.contains('collapsed') ? '▸' : '◂';
+          sidebarToggle.title = sidebar.classList.contains('collapsed') ? 'Expand Sidebar' : 'Collapse Sidebar';
+        });
+      }
+
+      // URL input and Sync
+      const urlInput = document.getElementById('api-url');
+      if (urlInput) {
+        urlInput.addEventListener('input', () => {
+          this.syncUrlToParamsTable();
+        });
+      }
+
+      // Send Button
+      const sendBtn = document.getElementById('api-send-btn');
+      if (sendBtn) {
+        sendBtn.addEventListener('click', () => this.runFetch());
+      }
+
+      // Save Button
+      const saveBtn = document.getElementById('api-save-btn');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+          const urlEl = document.getElementById('api-url');
+          const url = urlEl ? urlEl.value.trim() : '';
+          if (!url) {
+            Toast.show('Enter a URL to save', 'warning');
+            return;
+          }
+          const name = prompt('Enter a name for this request:', 'My Request') || 'My Request';
+          this.saveRequest(name);
+        });
+      }
+
+      // Clear Workspace
+      const clearBtn = document.getElementById('api-clear-btn');
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          const urlEl = document.getElementById('api-url');
+          if (urlEl) urlEl.value = '';
+          
+          const paramsTbody = document.getElementById('api-params-tbody');
+          if (paramsTbody) paramsTbody.innerHTML = '';
+          
+          const headersTbody = document.getElementById('api-headers-tbody');
+          if (headersTbody) headersTbody.innerHTML = '';
+          
+          const formTbody = document.getElementById('api-form-tbody');
+          if (formTbody) formTbody.innerHTML = '';
+          
+          this.addParamRow('', '', true, true);
+          this.addHeaderRow('', '', true);
+          this.addFormRow('', '', true);
+
+          // Reset Auth
+          const authSelect = document.getElementById('api-auth-type');
+          if (authSelect) authSelect.value = 'none';
+          this.switchAuthType('none');
+          
+          const tokenInput = document.getElementById('api-auth-bearer-token');
+          if (tokenInput) tokenInput.value = '';
+          
+          const userInput = document.getElementById('api-auth-basic-username');
+          if (userInput) userInput.value = '';
+          
+          const passInput = document.getElementById('api-auth-basic-password');
+          if (passInput) passInput.value = '';
+          
+          const keyInput = document.getElementById('api-auth-apikey-key');
+          if (keyInput) keyInput.value = '';
+          
+          const valInput = document.getElementById('api-auth-apikey-value');
+          if (valInput) valInput.value = '';
+
+          // Reset Body
+          const noneRadio = document.querySelector('input[name="api-body-type"][value="none"]');
+          if (noneRadio) noneRadio.checked = true;
+          this.switchBodyType('none');
+
+          // Reset Response Dashboard
+          const emptyState = document.getElementById('api-res-empty-state');
+          if (emptyState) emptyState.classList.remove('hidden');
+          
+          const metricsBar = document.getElementById('api-res-metrics-bar');
+          if (metricsBar) metricsBar.classList.add('hidden');
+          
+          const tabsContainer = document.getElementById('api-res-tabs-container');
+          if (tabsContainer) tabsContainer.classList.add('hidden');
+          
+          const loadingState = document.getElementById('api-res-loading-state');
+          if (loadingState) loadingState.classList.add('hidden');
+          
+          const errorState = document.getElementById('api-res-error-state');
+          if (errorState) errorState.classList.add('hidden');
+
+          Toast.show('Workspace cleared', 'info');
+        });
+      }
+    },
+
+    setupSidebarListeners() {
+      // Sidebar Tab switcher
+      const tabBtns = document.querySelectorAll('.api-sidebar-tab-btn');
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          const tabName = btn.dataset.tab;
+          this.activeSidebarTab = tabName;
+          
+          document.querySelectorAll('.api-sidebar-pane').forEach(p => p.classList.remove('active'));
+          const pane = document.getElementById(`api-pane-${tabName}`);
+          if (pane) pane.classList.add('active');
+        });
       });
 
-      document.getElementById('api-download-btn').addEventListener('click', () => {
-        const val = EditorManager.getValue('api-editor-response', 'api-fallback-response');
-        if (val) downloadTextFile(val, 'api_response.json');
+      // Clear History button
+      const clearHistBtn = document.getElementById('api-clear-history-btn');
+      if (clearHistBtn) {
+        clearHistBtn.addEventListener('click', () => {
+          this.history = [];
+          this.saveStorageData();
+          this.renderHistory();
+          Toast.show('Request history cleared', 'info');
+        });
+      }
+
+      // New Collection button
+      const newColBtn = document.getElementById('api-new-collection-btn');
+      if (newColBtn) {
+        newColBtn.addEventListener('click', () => {
+          const name = prompt('Enter collection name:') || '';
+          if (name.trim()) {
+            this.collections.push({
+              id: 'col-' + Date.now(),
+              name: name.trim(),
+              requests: []
+            });
+            this.saveStorageData();
+            this.renderCollections();
+            Toast.show(`Collection "${name}" created`, 'success');
+          }
+        });
+      }
+    },
+
+    setupConfigTabListeners() {
+      const tabBtns = document.querySelectorAll('.api-config-tab-btn');
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          const configName = btn.dataset.config;
+          this.activeConfigTab = configName;
+          
+          document.querySelectorAll('.api-config-panel').forEach(p => p.classList.remove('active'));
+          const pane = document.getElementById(`api-config-${configName}`);
+          if (pane) pane.classList.add('active');
+        });
       });
+    },
+
+    setupAuthListeners() {
+      const authSelect = document.getElementById('api-auth-type');
+      if (authSelect) {
+        authSelect.addEventListener('change', () => {
+          this.switchAuthType(authSelect.value);
+        });
+      }
+    },
+
+    switchAuthType(type) {
+      this.activeAuthType = type;
+      document.querySelectorAll('.api-auth-form-pane').forEach(p => p.classList.remove('active'));
+      const pane = document.getElementById(`api-auth-form-${type}`);
+      if (pane) pane.classList.add('active');
+    },
+
+    setupBodyListeners() {
+      const radios = document.querySelectorAll('input[name="api-body-type"]');
+      radios.forEach(radio => {
+        radio.addEventListener('change', () => {
+          this.switchBodyType(radio.value);
+        });
+      });
+    },
+
+    switchBodyType(type) {
+      this.activeBodyType = type;
+      
+      const bodyToggle = document.getElementById('api-body-toggle');
+      const editorWrap = document.getElementById('api-body-editor-wrap');
+      const formWrap = document.getElementById('api-body-form-wrap');
+      
+      if (type === 'none') {
+        if (bodyToggle) bodyToggle.checked = false;
+        if (editorWrap) editorWrap.classList.add('hidden');
+        if (formWrap) formWrap.classList.add('hidden');
+      } else if (type === 'json' || type === 'raw') {
+        if (bodyToggle) bodyToggle.checked = true;
+        if (editorWrap) editorWrap.classList.remove('hidden');
+        if (formWrap) formWrap.classList.add('hidden');
+        
+        const editor = App.editors['api-editor-request'];
+        if (editor) {
+          monaco.editor.setModelLanguage(editor.getModel(), type === 'json' ? 'json' : 'plaintext');
+        }
+      } else if (type === 'form') {
+        if (bodyToggle) bodyToggle.checked = true;
+        if (editorWrap) editorWrap.classList.add('hidden');
+        if (formWrap) formWrap.classList.remove('hidden');
+      }
+    },
+
+    setupTableListeners() {
+      const paramAddBtn = document.getElementById('api-param-add-btn');
+      if (paramAddBtn) {
+        paramAddBtn.addEventListener('click', () => {
+          this.addParamRow('', '', true, true);
+        });
+      }
+      
+      const headerAddBtn = document.getElementById('api-header-add-btn');
+      if (headerAddBtn) {
+        headerAddBtn.addEventListener('click', () => {
+          this.addHeaderRow('', '', true);
+        });
+      }
+      
+      const formAddBtn = document.getElementById('api-form-add-btn');
+      if (formAddBtn) {
+        formAddBtn.addEventListener('click', () => {
+          this.addFormRow('', '', true);
+        });
+      }
+    },
+
+    setupDevToolsListeners() {
+      // Copy cURL
+      const copyCurlBtn = document.getElementById('api-copy-curl-btn');
+      if (copyCurlBtn) {
+        copyCurlBtn.addEventListener('click', () => {
+          const curl = this.generateCurlCommand();
+          if (curl) {
+            navigator.clipboard.writeText(curl).then(() => Toast.show('cURL command copied', 'success'));
+          }
+        });
+      }
+
+      // Generate Fetch
+      const genFetchBtn = document.getElementById('api-gen-fetch-btn');
+      if (genFetchBtn) {
+        genFetchBtn.addEventListener('click', () => {
+          const code = this.generateFetchCode();
+          if (code) {
+            navigator.clipboard.writeText(code).then(() => Toast.show('Fetch code snippet copied', 'success'));
+          }
+        });
+      }
+
+      // Generate Axios
+      const genAxiosBtn = document.getElementById('api-gen-axios-btn');
+      if (genAxiosBtn) {
+        genAxiosBtn.addEventListener('click', () => {
+          const code = this.generateAxiosCode();
+          if (code) {
+            navigator.clipboard.writeText(code).then(() => Toast.show('Axios code snippet copied', 'success'));
+          }
+        });
+      }
+
+      // Import Body JSON
+      const importBodyBtn = document.getElementById('api-import-body-btn');
+      if (importBodyBtn) {
+        importBodyBtn.addEventListener('click', () => {
+          navigator.clipboard.readText().then(text => {
+            const parsed = safeParse(text);
+            if (parsed) {
+              EditorManager.checkAndLoadValue('api-editor-request', 'api-fallback-request', JSON.stringify(parsed, null, 2));
+              this.switchBodyType('json');
+              const jsonRadio = document.querySelector('input[name="api-body-type"][value="json"]');
+              if (jsonRadio) jsonRadio.checked = true;
+              Toast.show('JSON body loaded', 'success');
+            } else {
+              Toast.show('No valid JSON in clipboard to import', 'warning');
+            }
+          }).catch(() => {
+            Toast.show('Unable to read clipboard', 'warning');
+          });
+        });
+      }
+    },
+
+    setupResponseListeners() {
+      const tabBtns = document.querySelectorAll('.api-response-tab-btn');
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          tabBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          
+          const respName = btn.dataset.resp;
+          this.activeResponseTab = respName;
+          
+          document.querySelectorAll('.api-response-panel').forEach(p => p.classList.remove('active'));
+          const pane = document.getElementById(`api-resp-panel-${respName}`);
+          if (pane) pane.classList.add('active');
+        });
+      });
+
+      // Raw wrap toggle
+      const wrapToggle = document.getElementById('api-raw-wrap-toggle');
+      if (wrapToggle) {
+        wrapToggle.addEventListener('change', () => {
+          const editor = App.editors['api-editor-response'];
+          if (editor) {
+            editor.updateOptions({ wordWrap: wrapToggle.checked ? 'on' : 'off' });
+          }
+          const fallback = document.getElementById('api-fallback-response');
+          if (fallback) {
+            fallback.wrap = wrapToggle.checked ? 'soft' : 'off';
+          }
+        });
+      }
+
+      // Pretty view collapse/expand
+      const collapseBtn = document.getElementById('api-pretty-collapse-btn');
+      if (collapseBtn) {
+        collapseBtn.addEventListener('click', () => {
+          document.querySelectorAll('#api-res-tree-output details').forEach(d => d.open = false);
+        });
+      }
+      
+      const expandBtn = document.getElementById('api-pretty-expand-btn');
+      if (expandBtn) {
+        expandBtn.addEventListener('click', () => {
+          document.querySelectorAll('#api-res-tree-output details').forEach(d => d.open = true);
+        });
+      }
+
+      // Search listeners
+      const searchInput = document.getElementById('api-pretty-search-input');
+      if (searchInput) {
+        searchInput.addEventListener('input', () => this.runPrettySearch());
+      }
+      
+      const prevBtn = document.getElementById('api-pretty-search-prev-btn');
+      if (prevBtn) {
+        prevBtn.addEventListener('click', () => {
+          if (this.prettySearchMatches.length === 0) return;
+          this.prettySearchIndex = (this.prettySearchIndex - 1 + this.prettySearchMatches.length) % this.prettySearchMatches.length;
+          this.highlightActivePrettySearch();
+        });
+      }
+
+      const nextBtn = document.getElementById('api-pretty-search-next-btn');
+      if (nextBtn) {
+        nextBtn.addEventListener('click', () => {
+          if (this.prettySearchMatches.length === 0) return;
+          this.prettySearchIndex = (this.prettySearchIndex + 1) % this.prettySearchMatches.length;
+          this.highlightActivePrettySearch();
+        });
+      }
+    },
+
+    // Param Dynamic Row Additions
+    addParamRow(key = '', val = '', enabled = true, sync = true) {
+      const tbody = document.getElementById('api-params-tbody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="text-align: center;">
+          <input type="checkbox" class="table-checkbox" ${enabled ? 'checked' : ''}>
+        </td>
+        <td>
+          <input type="text" class="input-text param-key" placeholder="Key" value="${key}">
+        </td>
+        <td>
+          <input type="text" class="input-text param-val" placeholder="Value" value="${val}">
+        </td>
+        <td style="text-align: center;">
+          <button class="btn-delete-row" title="Delete Row">×</button>
+        </td>
+      `;
+      
+      tbody.appendChild(tr);
+      
+      const checkbox = tr.querySelector('.table-checkbox');
+      const keyInput = tr.querySelector('.param-key');
+      const valInput = tr.querySelector('.param-val');
+      const deleteBtn = tr.querySelector('.btn-delete-row');
+      
+      const onInputChange = () => {
+        if (tr === tbody.lastElementChild && (keyInput.value.trim() || valInput.value.trim())) {
+          this.addParamRow('', '', true, true);
+        }
+        this.syncParamsTableToUrl();
+      };
+      
+      checkbox.addEventListener('change', onInputChange);
+      keyInput.addEventListener('input', onInputChange);
+      valInput.addEventListener('input', onInputChange);
+      
+      deleteBtn.addEventListener('click', () => {
+        tr.remove();
+        if (tbody.children.length === 0) {
+          this.addParamRow('', '', true, false);
+        }
+        this.syncParamsTableToUrl();
+      });
+    },
+
+    // Header Dynamic Row Additions
+    addHeaderRow(key = '', val = '', enabled = true) {
+      const tbody = document.getElementById('api-headers-tbody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="text-align: center;">
+          <input type="checkbox" class="table-checkbox" ${enabled ? 'checked' : ''}>
+        </td>
+        <td>
+          <input type="text" class="input-text header-key" placeholder="Key" value="${key}">
+        </td>
+        <td>
+          <input type="text" class="input-text header-val" placeholder="Value" value="${val}">
+        </td>
+        <td style="text-align: center;">
+          <button class="btn-delete-row" title="Delete Row">×</button>
+        </td>
+      `;
+      
+      tbody.appendChild(tr);
+      
+      const checkbox = tr.querySelector('.table-checkbox');
+      const keyInput = tr.querySelector('.header-key');
+      const valInput = tr.querySelector('.header-val');
+      const deleteBtn = tr.querySelector('.btn-delete-row');
+      
+      const onInputChange = () => {
+        if (tr === tbody.lastElementChild && (keyInput.value.trim() || valInput.value.trim())) {
+          this.addHeaderRow('', '', true);
+        }
+      };
+      
+      checkbox.addEventListener('change', onInputChange);
+      keyInput.addEventListener('input', onInputChange);
+      valInput.addEventListener('input', onInputChange);
+      
+      deleteBtn.addEventListener('click', () => {
+        tr.remove();
+        if (tbody.children.length === 0) {
+          this.addHeaderRow('', '', true);
+        }
+      });
+    },
+
+    // Form Field Row Additions
+    addFormRow(key = '', val = '', enabled = true) {
+      const tbody = document.getElementById('api-form-tbody');
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="text-align: center;">
+          <input type="checkbox" class="table-checkbox" ${enabled ? 'checked' : ''}>
+        </td>
+        <td>
+          <input type="text" class="input-text form-key" placeholder="Key" value="${key}">
+        </td>
+        <td>
+          <input type="text" class="input-text form-val" placeholder="Value" value="${val}">
+        </td>
+        <td style="text-align: center;">
+          <button class="btn-delete-row" title="Delete Row">×</button>
+        </td>
+      `;
+      
+      tbody.appendChild(tr);
+      
+      const checkbox = tr.querySelector('.table-checkbox');
+      const keyInput = tr.querySelector('.form-key');
+      const valInput = tr.querySelector('.form-val');
+      const deleteBtn = tr.querySelector('.btn-delete-row');
+      
+      const onInputChange = () => {
+        if (tr === tbody.lastElementChild && (keyInput.value.trim() || valInput.value.trim())) {
+          this.addFormRow('', '', true);
+        }
+      };
+      
+      checkbox.addEventListener('change', onInputChange);
+      keyInput.addEventListener('input', onInputChange);
+      valInput.addEventListener('input', onInputChange);
+      
+      deleteBtn.addEventListener('click', () => {
+        tr.remove();
+        if (tbody.children.length === 0) {
+          this.addFormRow('', '', true);
+        }
+      });
+    },
+
+    syncUrlToParamsTable() {
+      const urlVal = document.getElementById('api-url').value.trim();
+      if (!urlVal) return;
+
+      try {
+        const questionIdx = urlVal.indexOf('?');
+        if (questionIdx === -1) {
+          document.getElementById('api-params-tbody').innerHTML = '';
+          this.addParamRow('', '', true, false);
+          return;
+        }
+
+        const queryString = urlVal.substring(questionIdx + 1);
+        const searchParams = new URLSearchParams(queryString);
+        
+        document.getElementById('api-params-tbody').innerHTML = '';
+        searchParams.forEach((val, key) => {
+          this.addParamRow(key, val, true, false);
+        });
+
+        // Add empty row
+        this.addParamRow('', '', true, false);
+      } catch (e) {
+        // ignore malformed URLs during intermediate typing
+      }
+    },
+
+    syncParamsTableToUrl() {
+      const urlInput = document.getElementById('api-url');
+      const urlVal = urlInput.value.trim();
+      
+      const questionIdx = urlVal.indexOf('?');
+      const baseUrl = questionIdx === -1 ? urlVal : urlVal.substring(0, questionIdx);
+      
+      const searchParams = new URLSearchParams();
+      const rows = document.querySelectorAll('#api-params-tbody tr');
+      
+      rows.forEach(row => {
+        const checkbox = row.querySelector('.table-checkbox');
+        const keyInput = row.querySelector('.param-key');
+        const valInput = row.querySelector('.param-val');
+        
+        if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
+          searchParams.append(keyInput.value.trim(), valInput ? valInput.value : '');
+        }
+      });
+      
+      const queryString = searchParams.toString();
+      urlInput.value = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+    },
+
+    compileHeaders() {
+      const headers = {};
+      
+      // 1. Read custom headers table
+      const rows = document.querySelectorAll('#api-headers-tbody tr');
+      rows.forEach(row => {
+        const checkbox = row.querySelector('.table-checkbox');
+        const keyInput = row.querySelector('.header-key');
+        const valInput = row.querySelector('.header-val');
+        
+        if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
+          headers[keyInput.value.trim()] = valInput ? valInput.value : '';
+        }
+      });
+      
+      // 2. Set JSON content type if JSON body active
+      if (this.activeBodyType === 'json') {
+        headers['Content-Type'] = 'application/json';
+      }
+      
+      // 3. Inject Auth headers
+      if (this.activeAuthType === 'bearer') {
+        const token = document.getElementById('api-auth-bearer-token').value.trim();
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      } else if (this.activeAuthType === 'basic') {
+        const user = document.getElementById('api-auth-basic-username').value.trim();
+        const pass = document.getElementById('api-auth-basic-password').value.trim();
+        if (user || pass) headers['Authorization'] = `Basic ${btoa(user + ':' + pass)}`;
+      } else if (this.activeAuthType === 'apikey') {
+        const key = document.getElementById('api-auth-apikey-key').value.trim();
+        const val = document.getElementById('api-auth-apikey-value').value.trim();
+        const addTo = document.getElementById('api-auth-apikey-addTo').value;
+        
+        if (key && addTo === 'header') {
+          headers[key] = val;
+        }
+      }
+      
+      return headers;
+    },
+
+    compileBody() {
+      if (this.activeBodyType === 'none') return null;
+      
+      if (this.activeBodyType === 'json' || this.activeBodyType === 'raw') {
+        return EditorManager.getValue('api-editor-request', 'api-fallback-request');
+      }
+      
+      if (this.activeBodyType === 'form') {
+        const formData = new FormData();
+        const rows = document.querySelectorAll('#api-form-tbody tr');
+        rows.forEach(row => {
+          const checkbox = row.querySelector('.table-checkbox');
+          const keyInput = row.querySelector('.form-key');
+          const valInput = row.querySelector('.form-val');
+          
+          if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
+            formData.append(keyInput.value.trim(), valInput ? valInput.value : '');
+          }
+        });
+        return formData;
+      }
+      
+      return null;
+    },
+
+    generateCurlCommand() {
+      const url = document.getElementById('api-url').value.trim() || 'https://api.example.com';
+      const method = document.getElementById('api-method').value;
+      let curl = `curl -X ${method} "${url}"`;
+      
+      const headers = this.compileHeaders();
+      for (const key in headers) {
+        curl += ` \\\n  -H "${key}: ${headers[key]}"`;
+      }
+      
+      const body = this.compileBody();
+      if (body) {
+        if (typeof body === 'string') {
+          curl += ` \\\n  -d '${body.replace(/'/g, "'\\''")}'`;
+        } else if (body instanceof FormData) {
+          body.forEach((val, key) => {
+            curl += ` \\\n  -F "${key}=${val}"`;
+          });
+        }
+      }
+      return curl;
+    },
+
+    generateFetchCode() {
+      const url = document.getElementById('api-url').value.trim() || 'https://api.example.com';
+      const method = document.getElementById('api-method').value;
+      const headers = this.compileHeaders();
+      const body = this.compileBody();
+      
+      let code = `fetch("${url}", {\n  method: "${method}",\n`;
+      if (Object.keys(headers).length > 0) {
+        code += `  headers: ${JSON.stringify(headers, null, 4).replace(/\n/g, '\n  ')},\n`;
+      }
+      if (body) {
+        if (typeof body === 'string') {
+          code += `  body: JSON.stringify(${body.replace(/\n/g, '\n  ')}),\n`;
+        } else {
+          code += `  body: formData,\n`;
+        }
+      }
+      code += `})\n.then(response => response.json())\n.then(data => console.log(data))\n.catch(error => console.error(error));`;
+      return code;
+    },
+
+    generateAxiosCode() {
+      const url = document.getElementById('api-url').value.trim() || 'https://api.example.com';
+      const method = document.getElementById('api-method').value.toLowerCase();
+      const headers = this.compileHeaders();
+      const body = this.compileBody();
+      
+      let code = `axios({\n  method: "${method}",\n  url: "${url}",\n`;
+      if (Object.keys(headers).length > 0) {
+        code += `  headers: ${JSON.stringify(headers, null, 4).replace(/\n/g, '\n  ')},\n`;
+      }
+      if (body) {
+        if (typeof body === 'string') {
+          code += `  data: ${body.replace(/\n/g, '\n  ')},\n`;
+        } else {
+          code += `  data: formData,\n`;
+        }
+      }
+      code += `})\n.then(response => console.log(response.data))\n.catch(error => console.error(error));`;
+      return code;
+    },
+
+    saveRequest(name) {
+      const url = document.getElementById('api-url').value.trim();
+      const method = document.getElementById('api-method').value;
+      
+      const reqObj = {
+        id: 'req-' + Date.now(),
+        name: name,
+        url: url,
+        method: method,
+        bodyType: this.activeBodyType,
+        bodyContent: this.activeBodyType === 'json' || this.activeBodyType === 'raw' ? EditorManager.getValue('api-editor-request', 'api-fallback-request') : '',
+        authType: this.activeAuthType,
+        authBearer: document.getElementById('api-auth-bearer-token').value.trim(),
+        authBasicUser: document.getElementById('api-auth-basic-username').value.trim(),
+        authBasicPass: document.getElementById('api-auth-basic-password').value.trim(),
+        authApiKeyName: document.getElementById('api-auth-apikey-key').value.trim(),
+        authApiKeyValue: document.getElementById('api-auth-apikey-value').value.trim(),
+        authApiKeyAddTo: document.getElementById('api-auth-apikey-addTo').value
+      };
+
+      if (this.collections.length > 0) {
+        let promptText = 'Choose a Collection index to save into (or leave empty):\n';
+        this.collections.forEach((col, idx) => {
+          promptText += `${idx + 1}. ${col.name}\n`;
+        });
+        const choice = prompt(promptText);
+        const idx = parseInt(choice) - 1;
+        if (!isNaN(idx) && idx >= 0 && idx < this.collections.length) {
+          this.collections[idx].requests.push(reqObj);
+          this.saveStorageData();
+          this.renderCollections();
+          Toast.show(`Saved to "${this.collections[idx].name}"`, 'success');
+          return;
+        }
+      }
+
+      this.saved.push(reqObj);
+      this.saveStorageData();
+      this.renderSaved();
+      Toast.show('Request saved locally', 'success');
+    },
+
+    loadRequest(req) {
+      document.getElementById('api-url').value = req.url;
+      document.getElementById('api-method').value = req.method;
+      
+      this.syncUrlToParamsTable();
+
+      // Load Auth
+      document.getElementById('api-auth-type').value = req.authType || 'none';
+      this.switchAuthType(req.authType || 'none');
+      document.getElementById('api-auth-bearer-token').value = req.authBearer || '';
+      document.getElementById('api-auth-basic-username').value = req.authBasicUser || '';
+      document.getElementById('api-auth-basic-password').value = req.authBasicPass || '';
+      document.getElementById('api-auth-apikey-key').value = req.authApiKeyName || '';
+      document.getElementById('api-auth-apikey-value').value = req.authApiKeyValue || '';
+      if (req.authApiKeyAddTo) document.getElementById('api-auth-apikey-addTo').value = req.authApiKeyAddTo;
+
+      // Load Body
+      const bodyType = req.bodyType || 'none';
+      const radio = document.querySelector(`input[name="api-body-type"][value="${bodyType}"]`);
+      if (radio) radio.checked = true;
+      this.switchBodyType(bodyType);
+      if (req.bodyContent) {
+        EditorManager.checkAndLoadValue('api-editor-request', 'api-fallback-request', req.bodyContent);
+      }
+
+      Toast.show('Loaded request configuration', 'info');
+    },
+
+    renderHistory() {
+      const list = document.getElementById('api-history-list');
+      list.innerHTML = '';
+      
+      if (this.history.length === 0) {
+        list.innerHTML = `<li class="empty-placeholder">No request history</li>`;
+        return;
+      }
+      
+      this.history.forEach((req, idx) => {
+        const li = document.createElement('li');
+        li.className = 'api-sidebar-list-item';
+        li.innerHTML = `
+          <div class="api-sidebar-list-item-content">
+            <span class="method-badge ${req.method}">${req.method}</span>
+            <span class="request-url" title="${req.url}">${req.url}</span>
+          </div>
+          <div class="api-sidebar-list-item-actions">
+            <button class="api-sidebar-action-btn run" title="Run request">▶</button>
+            <button class="api-sidebar-action-btn delete" title="Remove">×</button>
+          </div>
+        `;
+        
+        li.querySelector('.api-sidebar-list-item-content').addEventListener('click', () => this.loadRequest(req));
+        li.querySelector('.run').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.loadRequest(req);
+          this.runFetch();
+        });
+        li.querySelector('.delete').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.history.splice(idx, 1);
+          this.saveStorageData();
+          this.renderHistory();
+        });
+        list.appendChild(li);
+      });
+    },
+
+    renderSaved() {
+      const list = document.getElementById('api-saved-list');
+      list.innerHTML = '';
+      
+      if (this.saved.length === 0) {
+        list.innerHTML = `<li class="empty-placeholder">No saved requests</li>`;
+        return;
+      }
+      
+      this.saved.forEach((req, idx) => {
+        const li = document.createElement('li');
+        li.className = 'api-sidebar-list-item';
+        li.innerHTML = `
+          <div class="api-sidebar-list-item-content">
+            <span class="method-badge ${req.method}">${req.method}</span>
+            <span class="request-name" title="${req.name}">${req.name}</span>
+          </div>
+          <div class="api-sidebar-list-item-actions">
+            <button class="api-sidebar-action-btn run" title="Run request">▶</button>
+            <button class="api-sidebar-action-btn rename" title="Rename">✎</button>
+            <button class="api-sidebar-action-btn delete" title="Remove">×</button>
+          </div>
+        `;
+        
+        li.querySelector('.api-sidebar-list-item-content').addEventListener('click', () => this.loadRequest(req));
+        li.querySelector('.run').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.loadRequest(req);
+          this.runFetch();
+        });
+        li.querySelector('.rename').addEventListener('click', (e) => {
+          e.stopPropagation();
+          const newName = prompt('Rename request to:', req.name);
+          if (newName) {
+            req.name = newName;
+            this.saveStorageData();
+            this.renderSaved();
+          }
+        });
+        li.querySelector('.delete').addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.saved.splice(idx, 1);
+          this.saveStorageData();
+          this.renderSaved();
+        });
+        list.appendChild(li);
+      });
+    },
+
+    renderCollections() {
+      const list = document.getElementById('api-collections-list');
+      list.innerHTML = '';
+      
+      if (this.collections.length === 0) {
+        list.innerHTML = `<li class="empty-placeholder">No collections created</li>`;
+        return;
+      }
+      
+      this.collections.forEach((col, colIdx) => {
+        const li = document.createElement('li');
+        li.style.padding = '8px';
+        li.style.borderBottom = '1px solid var(--border-color)';
+        
+        let requestsHtml = '';
+        if (col.requests.length === 0) {
+          requestsHtml = `<div style="padding: 4px 12px; font-size: 0.72rem; color: var(--text-secondary); font-style: italic;">Empty Collection</div>`;
+        } else {
+          col.requests.forEach((req, reqIdx) => {
+            requestsHtml += `
+              <div class="api-sidebar-list-item col-req" data-req-idx="${reqIdx}" style="padding: 4px 6px 4px 16px; margin-top: 2px;">
+                <div class="api-sidebar-list-item-content">
+                  <span class="method-badge ${req.method}" style="font-size: 0.6rem; min-width: 32px; padding: 1px 3px;">${req.method}</span>
+                  <span class="request-name" style="font-size: 0.72rem;">${req.name}</span>
+                </div>
+                <div class="api-sidebar-list-item-actions">
+                  <button class="api-sidebar-action-btn run-col-req" title="Run request">▶</button>
+                  <button class="api-sidebar-action-btn delete-col-req" title="Remove">×</button>
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        li.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: 600; font-size: 0.8rem;">
+            <span>📁 ${col.name}</span>
+            <button class="api-sidebar-action-btn delete-col" title="Delete Collection" style="opacity: 0.7;">×</button>
+          </div>
+          <div class="collection-children" style="margin-top: 4px;">
+            ${requestsHtml}
+          </div>
+        `;
+        
+        // Listeners
+        li.querySelectorAll('.col-req').forEach(item => {
+          const reqIdx = parseInt(item.dataset.reqIdx);
+          const req = col.requests[reqIdx];
+          
+          item.querySelector('.api-sidebar-list-item-content').addEventListener('click', () => this.loadRequest(req));
+          item.querySelector('.run-col-req').addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.loadRequest(req);
+            this.runFetch();
+          });
+          item.querySelector('.delete-col-req').addEventListener('click', (e) => {
+            e.stopPropagation();
+            col.requests.splice(reqIdx, 1);
+            this.saveStorageData();
+            this.renderCollections();
+          });
+        });
+
+        li.querySelector('.delete-col').addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (confirm(`Delete Collection "${col.name}"?`)) {
+            this.collections.splice(colIdx, 1);
+            this.saveStorageData();
+            this.renderCollections();
+          }
+        });
+        
+        list.appendChild(li);
+      });
+    },
+
+    runPrettySearch() {
+      const query = document.getElementById('api-pretty-search-input').value.trim().toLowerCase();
+      const counter = document.getElementById('api-pretty-search-count');
+      
+      // Clear previous highlights
+      document.querySelectorAll('#api-res-tree-output .search-highlight').forEach(el => {
+        const parent = el.parentNode;
+        if (parent) {
+          parent.replaceChild(document.createTextNode(el.textContent), el);
+        }
+      });
+      document.querySelectorAll('#api-res-tree-output .search-active').forEach(el => el.classList.remove('search-active'));
+      
+      this.prettySearchMatches = [];
+      this.prettySearchIndex = -1;
+      
+      if (!query) {
+        counter.textContent = '0 of 0';
+        return;
+      }
+      
+      const elements = document.querySelectorAll('#api-res-tree-output .tree-key, #api-res-tree-output .tree-clickable');
+      elements.forEach(el => {
+        const text = el.textContent;
+        const lowerText = text.toLowerCase();
+        
+        if (lowerText.includes(query)) {
+          const idx = lowerText.indexOf(query);
+          const before = text.substring(0, idx);
+          const match = text.substring(idx, idx + query.length);
+          const after = text.substring(idx + query.length);
+          
+          el.innerHTML = '';
+          if (before) el.appendChild(document.createTextNode(before));
+          
+          const span = document.createElement('span');
+          span.className = 'search-highlight';
+          span.textContent = match;
+          el.appendChild(span);
+          
+          if (after) el.appendChild(document.createTextNode(after));
+          
+          this.prettySearchMatches.push(span);
+          
+          // Open details ancestors
+          let parent = el.closest('details');
+          while (parent) {
+            parent.open = true;
+            parent = parent.parentNode.closest('details');
+          }
+        }
+      });
+      
+      if (this.prettySearchMatches.length > 0) {
+        this.prettySearchIndex = 0;
+        this.highlightActivePrettySearch();
+      } else {
+        counter.textContent = '0 of 0';
+      }
+    },
+
+    highlightActivePrettySearch() {
+      document.querySelectorAll('#api-res-tree-output .search-active').forEach(el => el.classList.remove('search-active'));
+      const counter = document.getElementById('api-pretty-search-count');
+      
+      if (this.prettySearchMatches.length === 0) return;
+      
+      const active = this.prettySearchMatches[this.prettySearchIndex];
+      active.classList.add('search-active');
+      active.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      counter.textContent = `${this.prettySearchIndex + 1} of ${this.prettySearchMatches.length}`;
     },
 
     runFetch() {
@@ -2775,91 +3801,145 @@
         return;
       }
 
-      const statusBadge = document.getElementById('api-res-status');
-      const timeBadge = document.getElementById('api-res-time');
-      const headersTable = document.getElementById('api-headers-table').querySelector('tbody');
-      
-      const resEditor = document.getElementById('api-editor-response');
-      const resFallback = document.getElementById('api-fallback-response');
-      
-      if (resEditor) resEditor.classList.remove('api-error-response');
-      if (resFallback) resFallback.classList.remove('api-error-response');
+      // 1. Hide state panels, show loading skeleton
+      document.getElementById('api-res-empty-state').classList.add('hidden');
+      document.getElementById('api-res-error-state').classList.add('hidden');
+      document.getElementById('api-res-metrics-bar').classList.add('hidden');
+      document.getElementById('api-res-tabs-container').classList.add('hidden');
+      document.getElementById('api-res-loading-state').classList.remove('hidden');
 
-      // Loading state
-      statusBadge.className = 'status-badge';
-      statusBadge.textContent = '...';
-      timeBadge.textContent = '...ms';
-      headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers">Loading...</td></tr>`;
+      const startTime = Date.now();
       
-      EditorManager.checkAndLoadValue('api-editor-response', 'api-fallback-response', 'Fetching...');
-
-      const options = { method };
-
-      // Handle POST requests and include request body editor content
-      if (method === 'POST' && document.getElementById('api-body-toggle').checked) {
-        const bodyContent = EditorManager.getValue('api-editor-request', 'api-fallback-request');
-        if (bodyContent.trim()) {
-          options.body = bodyContent;
-          options.headers = { 'Content-Type': 'application/json' };
+      // Inject API Key into URL query params if active
+      let targetUrl = rawUrl;
+      if (this.activeAuthType === 'apikey') {
+        const key = document.getElementById('api-auth-apikey-key').value.trim();
+        const val = document.getElementById('api-auth-apikey-value').value.trim();
+        const addTo = document.getElementById('api-auth-apikey-addTo').value;
+        
+        if (key && addTo === 'query') {
+          const urlObj = new URL(targetUrl.includes('://') ? targetUrl : 'http://' + targetUrl);
+          urlObj.searchParams.set(key, val);
+          targetUrl = urlObj.toString();
         }
       }
 
-      const startTime = Date.now();
-      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(rawUrl)}`;
+      const options = { 
+        method,
+        headers: this.compileHeaders()
+      };
 
-      // Execute request with CORS proxy wrapping
+      const body = this.compileBody();
+      if (body && method !== 'GET' && method !== 'HEAD') {
+        options.body = body;
+      }
+
+      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+
       fetch(proxyUrl, options)
         .then(async (response) => {
           const duration = Date.now() - startTime;
-          timeBadge.textContent = `${duration} ms`;
+          const bodyText = await response.text();
+          const byteSize = new Blob([bodyText]).size;
+          
+          // Hide loading skeleton
+          document.getElementById('api-res-loading-state').classList.add('hidden');
 
-          // Populate Status badge with status + statusText
+          // Show metrics and response tabs
+          document.getElementById('api-res-metrics-bar').classList.remove('hidden');
+          document.getElementById('api-res-tabs-container').classList.remove('hidden');
+
+          // 1. Populate Metrics Bar
+          const statusBadge = document.getElementById('api-res-status');
           statusBadge.textContent = `${response.status} ${response.statusText || ''}`.trim();
           statusBadge.className = 'status-badge';
           
           if (response.status >= 200 && response.status < 300) {
-            statusBadge.classList.add('success'); // green
+            statusBadge.classList.add('success');
           } else if (response.status >= 300 && response.status < 400) {
-            statusBadge.style.backgroundColor = 'rgba(255, 185, 56, 0.15)'; // amber
+            statusBadge.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
+            statusBadge.style.color = 'var(--primary-accent)';
+          } else if (response.status >= 400 && response.status < 500) {
+            statusBadge.style.backgroundColor = 'rgba(249, 115, 22, 0.15)';
             statusBadge.style.color = 'var(--warning-color)';
           } else {
-            statusBadge.classList.add('error'); // red
+            statusBadge.classList.add('error');
           }
 
-          // Populate Headers table
+          document.getElementById('api-res-time').textContent = `${duration} ms`;
+          
+          const kbSize = byteSize >= 1024 ? `${(byteSize / 1024).toFixed(1)} KB` : `${byteSize} B`;
+          document.getElementById('api-res-size').textContent = kbSize;
+
+          const contentType = response.headers.get('Content-Type') || 'text/plain';
+          document.getElementById('api-res-content-type').textContent = contentType.split(';')[0];
+
+          // 2. Populate Headers Table
+          const headersTable = document.getElementById('api-headers-table').querySelector('tbody');
           headersTable.innerHTML = '';
           response.headers.forEach((val, name) => {
             const row = document.createElement('tr');
-            row.innerHTML = `<td>${name}</td><td>${val}</td>`;
+            row.innerHTML = `<td class="font-code" style="font-weight: 500;">${name}</td><td class="font-code">${val}</td>`;
             headersTable.appendChild(row);
           });
-
           if (headersTable.children.length === 0) {
             headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers">No response headers</td></tr>`;
           }
 
-          // Read response as text first, then attempt JSON parse
-          const bodyText = await response.text();
+          // 3. Populate Raw View Editor
           const parsed = safeParse(bodyText);
           const outVal = parsed ? JSON.stringify(parsed, null, 2) : bodyText;
-          
           EditorManager.checkAndLoadValue('api-editor-response', 'api-fallback-response', outVal);
-          Toast.show('API response received successfully', 'success');
-        })
-        .catch(err => {
-          const duration = Date.now() - startTime;
-          timeBadge.textContent = `${duration} ms`;
-          
-          statusBadge.textContent = 'ERR';
-          statusBadge.className = 'status-badge error';
-          headersTable.innerHTML = `<tr><td colspan="2" class="empty-headers error">Request Failed</td></tr>`;
-          
-          // Show error message in red in the response body panel
-          if (resEditor) resEditor.classList.add('api-error-response');
-          if (resFallback) resFallback.classList.add('api-error-response');
 
-          EditorManager.checkAndLoadValue('api-editor-response', 'api-fallback-response', `Error: ${err.message}`);
-          Toast.show('API request failed: ' + err.message, 'error');
+          // 4. Populate Pretty View JSON Tree
+          const treeOutput = document.getElementById('api-res-tree-output');
+          treeOutput.innerHTML = '';
+          if (parsed) {
+            const treeDOM = generateInteractiveTreeDOM(parsed);
+            treeOutput.appendChild(treeDOM);
+            
+            // Set up search elements
+            this.runPrettySearch();
+          } else {
+            treeOutput.innerHTML = `<div class="tree-empty-state">Response is not valid JSON. Pretty tree view is unavailable.</div>`;
+          }
+
+          // 5. Save history
+          this.history.unshift({
+            id: 'hist-' + Date.now(),
+            url: rawUrl,
+            method: method,
+            time: new Date().toLocaleTimeString()
+          });
+          if (this.history.length > 50) this.history.pop();
+          this.saveStorageData();
+          this.renderHistory();
+
+          Toast.show('Response received', 'success');
+        })
+        .catch((err) => {
+          // Hide loading skeleton
+          document.getElementById('api-res-loading-state').classList.add('hidden');
+          
+          // Show error state panel
+          const errorState = document.getElementById('api-res-error-state');
+          errorState.classList.remove('hidden');
+          
+          const errTitle = document.getElementById('api-error-title');
+          const errMessage = document.getElementById('api-error-message');
+          
+          errMessage.textContent = err.message || 'An unknown error occurred.';
+          
+          if (err.message.includes('CORS') || err.message.includes('fetch')) {
+            errTitle.textContent = 'Network or CORS Error';
+            errMessage.textContent = 'The request failed. This is typically caused by local network restrictions, invalid SSL certificates, or CORS policies blocking cross-origin requests from browser apps.';
+          } else if (err.message.includes('URL') || err.message.includes('parse')) {
+            errTitle.textContent = 'Invalid URL';
+          } else {
+            errTitle.textContent = 'Request Failed';
+          }
+
+          Toast.show('Request failed: ' + err.message, 'error');
         });
     },
 
