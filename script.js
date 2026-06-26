@@ -1756,30 +1756,63 @@
         debounce('search-run', () => this.performSearch(), 300);
       });
 
+      // Regex toggle
+      const regexBtn = document.getElementById('search-regex-btn');
+      if (regexBtn) {
+        regexBtn.addEventListener('click', () => {
+          regexBtn.classList.toggle('active');
+          this.performSearch();
+        });
+      }
+
       document.getElementById('search-prev-btn').addEventListener('click', () => this.navigate(-1));
       document.getElementById('search-next-btn').addEventListener('click', () => this.navigate(1));
+
+      // Results list click delegation
+      const resultsList = document.getElementById('search-results-list');
+      if (resultsList) {
+        resultsList.addEventListener('click', (e) => {
+          const row = e.target.closest('.search-result-row');
+          if (row) {
+            const idx = parseInt(row.dataset.index, 10);
+            if (!isNaN(idx) && idx >= 0 && idx < this.matches.length) {
+              this.currentIndex = idx;
+              this.revealActiveMatch();
+            }
+          }
+        });
+      }
     },
 
     render() {
       const text = EditorManager.getValue('search-editor-input', 'search-fallback-input');
       const obj = safeParse(text);
+      const treeOutput = document.getElementById('search-tree-output');
       const resultsList = document.getElementById('search-results-list');
 
-      if (!resultsList) return;
+      if (!treeOutput || !resultsList) return;
 
       if (!text.trim()) {
-        resultsList.innerHTML = '<div class="search-empty-state">Enter JSON input...</div>';
+        treeOutput.innerHTML = '<div class="tree-empty-state">Enter JSON input...</div>';
+        resultsList.innerHTML = '<div class="search-empty-state">Matches will list here...</div>';
+        this.matches = [];
+        this.currentIndex = -1;
+        document.getElementById('search-counter').textContent = '0 of 0';
         return;
       }
 
       if (obj === null) {
+        treeOutput.innerHTML = '<div class="tree-empty-state error">Invalid JSON structure.</div>';
         resultsList.innerHTML = '<div class="search-empty-state error">Invalid JSON structure.</div>';
+        this.matches = [];
+        this.currentIndex = -1;
+        document.getElementById('search-counter').textContent = '0 of 0';
         return;
       }
 
-      resultsList.innerHTML = '';
+      treeOutput.innerHTML = '';
       const treeDOM = generateInteractiveTreeDOM(obj);
-      resultsList.appendChild(treeDOM);
+      treeOutput.appendChild(treeDOM);
 
       // Re-run search if a query is already present
       this.performSearch();
@@ -1787,19 +1820,22 @@
 
     performSearch() {
       const query = document.getElementById('search-query').value.trim();
+      const treeOutput = document.getElementById('search-tree-output');
       const resultsList = document.getElementById('search-results-list');
       const counter = document.getElementById('search-counter');
+      const regexBtn = document.getElementById('search-regex-btn');
 
-      if (!resultsList) return;
+      if (!treeOutput || !resultsList) return;
 
-      // Clear highlights on all tree elements
-      resultsList.querySelectorAll('.search-highlight').forEach(el => el.classList.remove('search-highlight'));
-      resultsList.querySelectorAll('.search-active').forEach(el => el.classList.remove('search-active'));
+      // Clear highlights in the tree
+      treeOutput.querySelectorAll('.search-highlight').forEach(el => el.classList.remove('search-highlight'));
+      treeOutput.querySelectorAll('.search-active').forEach(el => el.classList.remove('search-active'));
 
       if (!query) {
         this.matches = [];
         this.currentIndex = -1;
         counter.textContent = '0 of 0';
+        resultsList.innerHTML = '<div class="search-empty-state">Matches will list here...</div>';
         return;
       }
 
@@ -1810,22 +1846,139 @@
         this.matches = [];
         this.currentIndex = -1;
         counter.textContent = '0 of 0';
+        resultsList.innerHTML = '<div class="search-empty-state error">Invalid JSON structure.</div>';
         return;
       }
 
-      // Run recursive search
-      this.matches = searchJSON(obj, query);
+      // Check regex mode
+      const isRegex = regexBtn && regexBtn.classList.contains('active');
+      let regex = null;
+      if (isRegex) {
+        try {
+          regex = new RegExp(query, 'i');
+        } catch (e) {
+          this.matches = [];
+          this.currentIndex = -1;
+          counter.textContent = '0 of 0';
+          resultsList.innerHTML = '<div class="search-empty-state error">Invalid regular expression.</div>';
+          return;
+        }
+      }
+
+      const lowerQuery = query.toLowerCase();
+
+      // Recursive search function that collects matches
+      const findMatches = (node, path = '$', keyName = null) => {
+        const found = [];
+
+        // 1. Check if keyName matches (if present)
+        if (keyName !== null) {
+          const keyStr = String(keyName);
+          const isMatch = regex ? regex.test(keyStr) : keyStr.toLowerCase().includes(lowerQuery);
+          if (isMatch) {
+            found.push({
+              path: path,
+              type: 'key',
+              key: keyName,
+              value: node,
+              text: keyStr
+            });
+          }
+        }
+
+        // 2. Check if the value matches
+        if (node === null || typeof node !== 'object') {
+          const valStr = String(node);
+          const isMatch = regex ? regex.test(valStr) : valStr.toLowerCase().includes(lowerQuery);
+          if (isMatch) {
+            found.push({
+              path: path,
+              type: 'value',
+              key: keyName,
+              value: node,
+              text: valStr
+            });
+          }
+        } else if (Array.isArray(node)) {
+          node.forEach((item, idx) => {
+            const childPath = `${path}[${idx}]`;
+            found.push(...findMatches(item, childPath, idx));
+          });
+        } else {
+          for (const key in node) {
+            if (Object.prototype.hasOwnProperty.call(node, key)) {
+              const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
+              found.push(...findMatches(node[key], childPath, key));
+            }
+          }
+        }
+        return found;
+      };
+
+      this.matches = findMatches(obj, '$');
       this.currentIndex = this.matches.length > 0 ? 0 : -1;
 
       if (this.matches.length === 0) {
         counter.textContent = '0 of 0';
+        resultsList.innerHTML = '<div class="search-empty-state">No matches found.</div>';
         return;
       }
 
-      // Inject highlights
+      // Map each match to its DOM element in the tree and apply highlighting
+      const expandParents = (el) => {
+        let parent = el.parentElement;
+        while (parent && parent !== treeOutput) {
+          if (parent.tagName === 'DETAILS') {
+            parent.open = true;
+          }
+          parent = parent.parentElement;
+        }
+      };
+
       this.matches.forEach(match => {
-        const elements = resultsList.querySelectorAll(`[data-path="${CSS.escape(match.path)}"]`);
-        elements.forEach(el => el.classList.add('search-highlight'));
+        let el = null;
+        if (match.type === 'key') {
+          el = treeOutput.querySelector(`.tree-key[data-path="${CSS.escape(match.path)}"]`);
+        } else {
+          el = treeOutput.querySelector(`[data-path="${CSS.escape(match.path)}"]:not(.tree-key)`);
+        }
+        match.domElement = el;
+
+        if (el) {
+          expandParents(el);
+          el.classList.add('search-highlight');
+        }
+      });
+
+      // Helper to format preview
+      const getValuePreview = (val) => {
+        if (val === null) return 'null';
+        if (Array.isArray(val)) return `[Array(${val.length})]`;
+        if (typeof val === 'object') {
+          return `{Object(${Object.keys(val).length})}`;
+        }
+        if (typeof val === 'string') return `"${val}"`;
+        return String(val);
+      };
+
+      // Populate results list
+      resultsList.innerHTML = '';
+      this.matches.forEach((match, idx) => {
+        const row = document.createElement('div');
+        row.className = 'search-result-row';
+        row.dataset.index = idx;
+
+        const pathSpan = document.createElement('span');
+        pathSpan.className = 'search-result-path';
+        pathSpan.textContent = match.path;
+
+        const previewSpan = document.createElement('span');
+        previewSpan.className = 'search-result-preview';
+        previewSpan.textContent = getValuePreview(match.value);
+
+        row.appendChild(pathSpan);
+        row.appendChild(previewSpan);
+        resultsList.appendChild(row);
       });
 
       this.revealActiveMatch();
@@ -1838,23 +1991,34 @@
     },
 
     revealActiveMatch() {
+      const treeOutput = document.getElementById('search-tree-output');
       const resultsList = document.getElementById('search-results-list');
       const counter = document.getElementById('search-counter');
 
-      if (!resultsList) return;
+      if (!treeOutput || !resultsList) return;
 
-      // Clear previous active highlight
-      resultsList.querySelectorAll('.search-active').forEach(el => el.classList.remove('search-active'));
+      // Clear previous active highlights in tree and results list
+      treeOutput.querySelectorAll('.search-active').forEach(el => el.classList.remove('search-active'));
+      resultsList.querySelectorAll('.search-result-row.active').forEach(el => el.classList.remove('active'));
 
-      if (this.currentIndex === -1 || this.matches.length === 0) return;
+      if (this.currentIndex === -1 || this.matches.length === 0) {
+        counter.textContent = '0 of 0';
+        return;
+      }
 
       const activeMatch = this.matches[this.currentIndex];
-      const elements = resultsList.querySelectorAll(`[data-path="${CSS.escape(activeMatch.path)}"]`);
-      
-      elements.forEach(el => el.classList.add('search-active'));
-      
-      if (elements.length > 0) {
-        elements[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      // Highlight active match in the tree
+      if (activeMatch.domElement) {
+        activeMatch.domElement.classList.add('search-active');
+        activeMatch.domElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+
+      // Highlight active row in the results list
+      const activeRow = resultsList.querySelector(`.search-result-row[data-index="${this.currentIndex}"]`);
+      if (activeRow) {
+        activeRow.classList.add('active');
+        activeRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
 
       counter.textContent = `${this.currentIndex + 1} of ${this.matches.length}`;
@@ -2128,10 +2292,12 @@
 
       DragDropManager.setup(document.getElementById('tool-beautify'), (val) => {
         EditorManager.checkAndLoadValue('beautify-editor-input', 'beautify-fallback-input', val);
+        this.runBeautify();
       });
 
       const onContentChange = () => {
         debounce('beautify-save', () => this.saveSession(), 1000);
+        this.runBeautify();
       };
 
       const editor = App.editors['beautify-editor-input'];
@@ -2141,56 +2307,75 @@
 
       document.getElementById('beautify-fallback-input').addEventListener('input', onContentChange);
 
-      // Controls
-      document.getElementById('beautify-sort-btn').addEventListener('click', () => this.applyBeautify('sort'));
-      document.getElementById('beautify-dup-btn').addEventListener('click', () => this.applyBeautify('dup'));
-      document.getElementById('beautify-null-btn').addEventListener('click', () => this.applyBeautify('null'));
-      document.getElementById('beautify-empty-btn').addEventListener('click', () => this.applyBeautify('empty'));
+      // Toggles click listeners
+      const toggles = ['beautify-sort-btn', 'beautify-dup-btn', 'beautify-null-btn', 'beautify-empty-btn'];
+      toggles.forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+          btn.addEventListener('click', () => {
+            btn.classList.toggle('active');
+            this.runBeautify();
+          });
+        }
+      });
 
       document.getElementById('beautify-copy-btn').addEventListener('click', () => {
         const val = EditorManager.getValue('beautify-editor-output', 'beautify-fallback-output');
-        if (val) navigator.clipboard.writeText(val).then(() => Toast.show('Output copied', 'success'));
+        if (val && !val.startsWith('Error:')) {
+          navigator.clipboard.writeText(val).then(() => Toast.show('Output copied', 'success'));
+        } else {
+          Toast.show('No valid output to copy', 'warning');
+        }
       });
 
       document.getElementById('beautify-download-btn').addEventListener('click', () => {
         const val = EditorManager.getValue('beautify-editor-output', 'beautify-fallback-output');
-        if (val) downloadTextFile(val, 'beautified.json');
+        if (val && !val.startsWith('Error:')) {
+          downloadTextFile(val, 'beautified.json');
+        } else {
+          Toast.show('No valid output to download', 'warning');
+        }
       });
     },
 
-    applyBeautify(action) {
+    runBeautify() {
       const input = EditorManager.getValue('beautify-editor-input', 'beautify-fallback-input');
-      const obj = safeParse(input);
+      const outputEditorId = 'beautify-editor-output';
+      const outputFallbackId = 'beautify-fallback-output';
 
       if (!input.trim()) {
-        Toast.show('Please enter JSON input first', 'warning');
+        EditorManager.checkAndLoadValue(outputEditorId, outputFallbackId, 'Error: Please enter JSON input first');
         return;
       }
 
+      const obj = safeParse(input);
       if (obj === null) {
-        Toast.show('Invalid JSON structure. Action cancelled.', 'error');
+        EditorManager.checkAndLoadValue(outputEditorId, outputFallbackId, 'Error: Invalid JSON structure');
         return;
       }
 
       let result = deepClone(obj);
-      let msg = '';
 
-      if (action === 'sort') {
+      const sortActive = document.getElementById('beautify-sort-btn').classList.contains('active');
+      const nullActive = document.getElementById('beautify-null-btn').classList.contains('active');
+      const emptyActive = document.getElementById('beautify-empty-btn').classList.contains('active');
+
+      if (sortActive) {
         result = sortObjectKeys(result);
-        msg = 'Keys sorted alphabetically';
-      } else if (action === 'dup') {
-        msg = 'Duplicate keys resolved';
-      } else if (action === 'null') {
+      }
+      if (nullActive) {
         result = this.removeNulls(result);
-        msg = 'Null values removed';
-      } else if (action === 'empty') {
+      }
+      if (emptyActive) {
         result = this.removeEmptyStructures(result);
-        msg = 'Empty arrays & objects removed';
+      }
+
+      if (result === undefined) {
+        result = {};
       }
 
       const outputStr = JSON.stringify(result, null, 2);
-      EditorManager.checkAndLoadValue('beautify-editor-output', 'beautify-fallback-output', outputStr);
-      Toast.show(msg, 'success');
+      EditorManager.checkAndLoadValue(outputEditorId, outputFallbackId, outputStr);
     },
 
     removeNulls(obj) {
@@ -2212,7 +2397,7 @@
       if (obj === null || typeof obj !== 'object') return obj;
       if (Array.isArray(obj)) {
         const cleanArr = obj.map(item => this.removeEmptyStructures(item))
-                            .filter(item => item !== undefined);
+                            .filter(item => item !== undefined && item !== null);
         return cleanArr.length > 0 ? cleanArr : undefined;
       }
 
@@ -2221,7 +2406,7 @@
       for (const key in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {
           const val = this.removeEmptyStructures(obj[key]);
-          if (val !== undefined && (typeof val !== 'object' || Object.keys(val).length > 0)) {
+          if (val !== undefined && val !== null && (typeof val !== 'object' || Object.keys(val).length > 0)) {
             result[key] = val;
             hasKeys = true;
           }
@@ -2238,6 +2423,7 @@
     restoreSession() {
       const val = localStorage.getItem('toolkit_session_beautify') || App.defaultJSON;
       EditorManager.checkAndLoadValue('beautify-editor-input', 'beautify-fallback-input', val);
+      this.runBeautify();
     }
   };
 
@@ -2355,31 +2541,77 @@
 
   // 11. JSON MERGE TOOL
   // FIX: Bug 8 — deepMerge supports array concatenation in merge-arrays mode
-  function mergeDeep(target, source, mode) {
+  // Recursive deep merge with conflict tracking
+  function mergeObjects(target, source, strategy, path = '$', conflicts = []) {
     for (const key of Object.keys(source)) {
-      if (mode === 'merge-arrays' 
-          && Array.isArray(target[key]) 
-          && Array.isArray(source[key])) {
-        target[key] = [...target[key], ...source[key]];
-      } else if (typeof source[key] === 'object' && source[key] !== null
-                 && typeof target[key] === 'object' && target[key] !== null
-                 && !Array.isArray(source[key])) {
-        mergeDeep(target[key], source[key], mode);
-      } else if (mode === 'override' || !(key in target)) {
-        target[key] = source[key];
+      const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
+      
+      if (!(key in target)) {
+        target[key] = deepClone(source[key]);
+        continue;
+      }
+
+      const targetVal = target[key];
+      const sourceVal = source[key];
+
+      const isTargetObj = targetVal !== null && typeof targetVal === 'object' && !Array.isArray(targetVal);
+      const isSourceObj = sourceVal !== null && typeof sourceVal === 'object' && !Array.isArray(sourceVal);
+
+      const isTargetArr = Array.isArray(targetVal);
+      const isSourceArr = Array.isArray(sourceVal);
+
+      if (isTargetObj && isSourceObj) {
+        mergeObjects(targetVal, sourceVal, strategy, childPath, conflicts);
+      } else if (strategy === 'arrays' && isTargetArr && isSourceArr) {
+        target[key] = [...targetVal, ...deepClone(sourceVal)];
+      } else {
+        const targetJson = JSON.stringify(targetVal);
+        const sourceJson = JSON.stringify(sourceVal);
+
+        if (targetJson !== sourceJson) {
+          let won = null;
+          let lost = null;
+
+          if (strategy === 'keep') {
+            won = targetVal;
+            lost = sourceVal;
+          } else {
+            won = sourceVal;
+            lost = targetVal;
+            target[key] = deepClone(sourceVal);
+          }
+
+          conflicts.push({
+            path: childPath,
+            won: won,
+            lost: lost
+          });
+        }
       }
     }
     return target;
   }
 
+  function formatConflictValue(val) {
+    if (val === null) return 'null';
+    if (val === undefined) return 'undefined';
+    if (typeof val === 'string') return `"${val}"`;
+    if (typeof val === 'object') {
+      const str = JSON.stringify(val);
+      return str.length > 30 ? str.slice(0, 30) + '...' : str;
+    }
+    return String(val);
+  }
+
   App.toolRegistry['merge'] = {
     id: 'merge',
-    panelsCount: 0,
-    maxPanels: 3,
+    activePanelIds: [],
+    nextPanelId: 0,
+    maxPanels: 6,
 
     init() {
-      // Dynamic panels container
-      this.panelsCount = 0;
+      this.activePanelIds = [];
+      this.nextPanelId = 0;
       document.getElementById('merge-inputs-row').innerHTML = '';
       
       // Default: create 2 panels
@@ -2388,39 +2620,46 @@
 
       EditorManager.create('merge-editor-output', { readOnly: true });
 
+      // Hide conflicts container initially
+      const conflictsContainer = document.getElementById('merge-conflicts-container');
+      if (conflictsContainer) conflictsContainer.classList.add('hidden');
+
       // Buttons
-      document.getElementById('merge-add-panel-btn').addEventListener('click', () => this.addPanel());
-      document.getElementById('merge-run-btn').addEventListener('click', () => this.runMerge());
+      document.getElementById('merge-add-panel-btn').onclick = () => this.addPanel();
+      document.getElementById('merge-run-btn').onclick = () => this.runMerge();
       
-      document.getElementById('merge-copy-btn').addEventListener('click', () => {
+      document.getElementById('merge-copy-btn').onclick = () => {
         const val = EditorManager.getValue('merge-editor-output', 'merge-fallback-output');
         if (val) navigator.clipboard.writeText(val).then(() => Toast.show('Merged JSON copied', 'success'));
-      });
+      };
 
-      document.getElementById('merge-download-btn').addEventListener('click', () => {
+      document.getElementById('merge-download-btn').onclick = () => {
         const val = EditorManager.getValue('merge-editor-output', 'merge-fallback-output');
         if (val) downloadTextFile(val, 'merged.json');
-      });
+      };
     },
 
     addPanel() {
-      if (this.panelsCount >= this.maxPanels) {
-        Toast.show('Maximum 3 input panels allowed', 'warning');
+      if (this.activePanelIds.length >= this.maxPanels) {
+        Toast.show(`Maximum ${this.maxPanels} input panels allowed`, 'warning');
         return;
       }
 
-      this.panelsCount++;
-      const id = this.panelsCount;
+      this.nextPanelId++;
+      const id = this.nextPanelId;
+      this.activePanelIds.push(id);
+      
+      const panelIndex = this.activePanelIds.length;
       
       const panel = document.createElement('div');
       panel.className = 'merge-panel-item';
       panel.id = `merge-panel-wrap-${id}`;
       panel.innerHTML = `
         <div class="panel-header">
-          <h3>JSON Input ${id}</h3>
+          <h3 class="panel-title-text">JSON Input</h3>
           <div class="panel-header-actions">
             <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
-            ${id > 2 ? `<button class="btn-sm btn-outline remove-panel-btn" data-id="${id}">Remove</button>` : ''}
+            <button class="btn-sm btn-outline remove-panel-btn" data-id="${id}">Remove</button>
           </div>
         </div>
         <div class="editor-container" id="merge-editor-${id}"></div>
@@ -2438,69 +2677,138 @@
       });
 
       // Bind remove button
-      if (id > 2) {
-        panel.querySelector('.remove-panel-btn').addEventListener('click', (e) => {
-          const pid = e.target.dataset.id;
-          this.removePanel(pid);
-        });
-      }
+      panel.querySelector('.remove-panel-btn').onclick = (e) => {
+        const pid = parseInt(e.target.dataset.id, 10);
+        this.removePanel(pid);
+      };
 
       // Populate default content
-      const defaultData = id === 1 ? App.defaultJSON : `{\n  "additionalInfo": "Merged dynamically from panel ${id}",\n  "status": "active"\n}`;
+      const defaultData = panelIndex === 1 ? App.defaultJSON : `{\n  "additionalInfo": "Merged dynamically from panel ${panelIndex}",\n  "status": "ACTIVE"\n}`;
       EditorManager.checkAndLoadValue(`merge-editor-${id}`, `merge-fallback-${id}`, defaultData);
+
+      this.updatePanelTitles();
     },
 
     removePanel(id) {
+      if (this.activePanelIds.length <= 2) {
+        Toast.show('At least 2 input panels are required', 'warning');
+        return;
+      }
+
       const panel = document.getElementById(`merge-panel-wrap-${id}`);
       if (panel) {
         panel.remove();
-        // Remove from Monaco registry
         delete App.editors[`merge-editor-${id}`];
         delete App.fallbacks[`merge-fallback-${id}`];
-        this.panelsCount--;
-        Toast.show(`Removed Input Panel ${id}`, 'info');
+        this.activePanelIds = this.activePanelIds.filter(pid => pid !== id);
+        this.updatePanelTitles();
+        Toast.show('Removed Input Panel', 'info');
       }
+    },
+
+    updatePanelTitles() {
+      this.activePanelIds.forEach((id, idx) => {
+        const panel = document.getElementById(`merge-panel-wrap-${id}`);
+        if (panel) {
+          const title = panel.querySelector('.panel-title-text');
+          if (title) {
+            title.textContent = `JSON Input ${idx + 1}`;
+          }
+          // Hide remove button for first 2 panels only if total count is 2
+          const removeBtn = panel.querySelector('.remove-panel-btn');
+          if (removeBtn) {
+            if (this.activePanelIds.length <= 2) {
+              removeBtn.classList.add('hidden');
+            } else {
+              removeBtn.classList.remove('hidden');
+            }
+          }
+        }
+      });
     },
 
     runMerge() {
       const objectsToMerge = [];
       const strategy = document.getElementById('merge-conflict-select').value;
-      const mode = strategy === 'arrays' ? 'merge-arrays' : strategy;
+      const conflicts = [];
+      const invalidPanels = [];
+
+      // Reset all panel borders and classes
+      this.activePanelIds.forEach(id => {
+        const wrap = document.getElementById(`merge-panel-wrap-${id}`);
+        if (wrap) {
+          wrap.classList.remove('invalid-json');
+        }
+      });
 
       // Extract all valid JSON values
-      for (let i = 1; i <= 3; i++) {
-        const wrap = document.getElementById(`merge-panel-wrap-${i}`);
+      this.activePanelIds.forEach((id, index) => {
+        const wrap = document.getElementById(`merge-panel-wrap-${id}`);
         if (wrap) {
-          const val = EditorManager.getValue(`merge-editor-${i}`, `merge-fallback-${i}`);
+          const val = EditorManager.getValue(`merge-editor-${id}`, `merge-fallback-${id}`);
           if (val.trim()) {
             const parsed = safeParse(val);
             if (parsed === null) {
-              Toast.show(`Input Panel ${i} contains invalid JSON. Merge stopped.`, 'error');
-              return;
+              wrap.classList.add('invalid-json');
+              invalidPanels.push(index + 1);
+            } else {
+              objectsToMerge.push(parsed);
             }
-            objectsToMerge.push(parsed);
           }
         }
+      });
+
+      if (invalidPanels.length > 0) {
+        Toast.show(`Panel ${invalidPanels.join(', ')} contains invalid JSON and was excluded`, 'warning');
       }
 
       if (objectsToMerge.length === 0) {
-        Toast.show('No inputs available to merge', 'warning');
+        Toast.show('No valid JSON inputs available to merge', 'error');
+        EditorManager.checkAndLoadValue('merge-editor-output', 'merge-fallback-output', 'Error: No valid JSON inputs to merge');
+        const conflictsContainer = document.getElementById('merge-conflicts-container');
+        if (conflictsContainer) conflictsContainer.classList.add('hidden');
         return;
       }
 
-      // Merge logic - clone target and source elements to prevent mutation of the originals
+      // Merge logic - clone first object as base
       let result = deepClone(objectsToMerge[0]);
       for (let i = 1; i < objectsToMerge.length; i++) {
-        result = mergeDeep(result, deepClone(objectsToMerge[i]), mode);
+        result = mergeObjects(result, deepClone(objectsToMerge[i]), strategy, '$', conflicts);
       }
 
       const outputStr = JSON.stringify(result, null, 2);
       EditorManager.checkAndLoadValue('merge-editor-output', 'merge-fallback-output', outputStr);
-      Toast.show('Successfully merged JSON documents', 'success');
+
+      // Display conflicts badge and list
+      const conflictsContainer = document.getElementById('merge-conflicts-container');
+      if (conflictsContainer) {
+        if (conflicts.length > 0) {
+          conflictsContainer.classList.remove('hidden');
+          conflictsContainer.innerHTML = `
+            <div class="conflict-badge">Conflicts detected: ${conflicts.length}</div>
+            <div class="conflict-list custom-scrollbar">
+              ${conflicts.map(c => {
+                const wonStr = formatConflictValue(c.won);
+                const lostStr = formatConflictValue(c.lost);
+                const actionWord = strategy === 'keep' ? 'kept' : 'overrode';
+                return `<div class="conflict-item"><span class="conflict-path">${c.path}</span> → <span class="conflict-won">${wonStr}</span> ${actionWord} <span class="conflict-lost">${lostStr}</span></div>`;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          conflictsContainer.classList.add('hidden');
+          conflictsContainer.innerHTML = '';
+        }
+      }
+
+      if (invalidPanels.length > 0) {
+        Toast.show('Merged valid JSON documents (invalid panels excluded)', 'warning');
+      } else {
+        Toast.show('Successfully merged JSON documents', 'success');
+      }
     },
 
     restoreSession() {
-      // Re-trigger init since dynamic elements are not restored automatically
       this.init();
     }
   };
@@ -3109,7 +3417,15 @@
           
           document.querySelectorAll('.api-response-panel').forEach(p => p.classList.remove('active'));
           const pane = document.getElementById(`api-resp-panel-${respName}`);
-          if (pane) pane.classList.add('active');
+          if (pane) {
+            pane.classList.add('active');
+            if (respName === 'raw') {
+              const editor = App.editors['api-editor-response'];
+              if (editor) {
+                setTimeout(() => editor.layout(), 50);
+              }
+            }
+          }
         });
       });
 
@@ -3353,136 +3669,7 @@
       urlInput.value = queryString ? `${baseUrl}?${queryString}` : baseUrl;
     },
 
-    compileHeaders() {
-      const headers = {};
-      
-      // 1. Read custom headers table
-      const rows = document.querySelectorAll('#api-headers-tbody tr');
-      rows.forEach(row => {
-        const checkbox = row.querySelector('.table-checkbox');
-        const keyInput = row.querySelector('.header-key');
-        const valInput = row.querySelector('.header-val');
-        
-        if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
-          headers[keyInput.value.trim()] = valInput ? valInput.value : '';
-        }
-      });
-      
-      // 2. Set JSON content type if JSON body active
-      if (this.activeBodyType === 'json') {
-        headers['Content-Type'] = 'application/json';
-      }
-      
-      // 3. Inject Auth headers
-      if (this.activeAuthType === 'bearer') {
-        const token = document.getElementById('api-auth-bearer-token').value.trim();
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-      } else if (this.activeAuthType === 'basic') {
-        const user = document.getElementById('api-auth-basic-username').value.trim();
-        const pass = document.getElementById('api-auth-basic-password').value.trim();
-        if (user || pass) headers['Authorization'] = `Basic ${btoa(user + ':' + pass)}`;
-      } else if (this.activeAuthType === 'apikey') {
-        const key = document.getElementById('api-auth-apikey-key').value.trim();
-        const val = document.getElementById('api-auth-apikey-value').value.trim();
-        const addTo = document.getElementById('api-auth-apikey-addTo').value;
-        
-        if (key && addTo === 'header') {
-          headers[key] = val;
-        }
-      }
-      
-      return headers;
-    },
 
-    compileBody() {
-      if (this.activeBodyType === 'none') return null;
-      
-      if (this.activeBodyType === 'json' || this.activeBodyType === 'raw') {
-        return EditorManager.getValue('api-editor-request', 'api-fallback-request');
-      }
-      
-      if (this.activeBodyType === 'form') {
-        const formData = new FormData();
-        const rows = document.querySelectorAll('#api-form-tbody tr');
-        rows.forEach(row => {
-          const checkbox = row.querySelector('.table-checkbox');
-          const keyInput = row.querySelector('.form-key');
-          const valInput = row.querySelector('.form-val');
-          
-          if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
-            formData.append(keyInput.value.trim(), valInput ? valInput.value : '');
-          }
-        });
-        return formData;
-      }
-      
-      return null;
-    },
-
-    generateCurlCommand() {
-      const url = document.getElementById('api-url').value.trim() || 'https://api.example.com';
-      const method = document.getElementById('api-method').value;
-      let curl = `curl -X ${method} "${url}"`;
-      
-      const headers = this.compileHeaders();
-      for (const key in headers) {
-        curl += ` \\\n  -H "${key}: ${headers[key]}"`;
-      }
-      
-      const body = this.compileBody();
-      if (body) {
-        if (typeof body === 'string') {
-          curl += ` \\\n  -d '${body.replace(/'/g, "'\\''")}'`;
-        } else if (body instanceof FormData) {
-          body.forEach((val, key) => {
-            curl += ` \\\n  -F "${key}=${val}"`;
-          });
-        }
-      }
-      return curl;
-    },
-
-    generateFetchCode() {
-      const url = document.getElementById('api-url').value.trim() || 'https://api.example.com';
-      const method = document.getElementById('api-method').value;
-      const headers = this.compileHeaders();
-      const body = this.compileBody();
-      
-      let code = `fetch("${url}", {\n  method: "${method}",\n`;
-      if (Object.keys(headers).length > 0) {
-        code += `  headers: ${JSON.stringify(headers, null, 4).replace(/\n/g, '\n  ')},\n`;
-      }
-      if (body) {
-        if (typeof body === 'string') {
-          code += `  body: JSON.stringify(${body.replace(/\n/g, '\n  ')}),\n`;
-        } else {
-          code += `  body: formData,\n`;
-        }
-      }
-      code += `})\n.then(response => response.json())\n.then(data => console.log(data))\n.catch(error => console.error(error));`;
-      return code;
-    },
-
-    generateAxiosCode() {
-      const url = document.getElementById('api-url').value.trim() || 'https://api.example.com';
-      const method = document.getElementById('api-method').value.toLowerCase();
-      const headers = this.compileHeaders();
-      const body = this.compileBody();
-      
-      let code = `axios({\n  method: "${method}",\n  url: "${url}",\n`;
-      if (Object.keys(headers).length > 0) {
-        code += `  headers: ${JSON.stringify(headers, null, 4).replace(/\n/g, '\n  ')},\n`;
-      }
-      if (body) {
-        if (typeof body === 'string') {
-          code += `  data: ${body.replace(/\n/g, '\n  ')},\n`;
-        } else {
-          code += `  data: formData,\n`;
-        }
-      }
-      code += `})\n.then(response => console.log(response.data))\n.catch(error => console.error(error));`;
-      return code;
-    },
 
     saveRequest(name) {
       const url = document.getElementById('api-url').value.trim();
@@ -3792,6 +3979,170 @@
       counter.textContent = `${this.prettySearchIndex + 1} of ${this.prettySearchMatches.length}`;
     },
 
+    getRequestUrl() {
+      const rawUrl = document.getElementById('api-url').value.trim() || 'https://api.example.com';
+      const authType = document.getElementById('api-auth-type').value;
+      
+      let targetUrl = rawUrl;
+      if (authType === 'apikey') {
+        const key = document.getElementById('api-auth-apikey-key').value.trim();
+        const val = document.getElementById('api-auth-apikey-value').value.trim();
+        const addTo = document.getElementById('api-auth-apikey-addTo').value;
+        
+        if (key && addTo === 'query') {
+          try {
+            const urlObj = new URL(targetUrl.includes('://') ? targetUrl : 'http://' + targetUrl);
+            urlObj.searchParams.set(key, val);
+            targetUrl = urlObj.toString();
+          } catch (e) {
+            // Ignore URL parsing errors during intermediate typing
+          }
+        }
+      }
+      return targetUrl;
+    },
+
+    compileHeaders() {
+      const headers = {};
+      
+      // 1. Read custom headers table
+      const rows = document.querySelectorAll('#api-headers-tbody tr');
+      rows.forEach(row => {
+        const checkbox = row.querySelector('.table-checkbox');
+        const keyInput = row.querySelector('.header-key');
+        const valInput = row.querySelector('.header-val');
+        
+        if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
+          headers[keyInput.value.trim()] = valInput ? valInput.value : '';
+        }
+      });
+      
+      // 2. Set JSON content type if JSON body active
+      const bodyType = document.querySelector('input[name="api-body-type"]:checked')?.value || 'none';
+      if (bodyType === 'json') {
+        headers['Content-Type'] = 'application/json';
+      }
+      
+      // 3. Inject Auth headers
+      const authType = document.getElementById('api-auth-type').value;
+      if (authType === 'bearer') {
+        const token = document.getElementById('api-auth-bearer-token').value.trim();
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+      } else if (authType === 'basic') {
+        const user = document.getElementById('api-auth-basic-username').value.trim();
+        const pass = document.getElementById('api-auth-basic-password').value.trim();
+        if (user || pass) {
+          try {
+            const credentials = btoa(unescape(encodeURIComponent(user + ':' + pass)));
+            headers['Authorization'] = `Basic ${credentials}`;
+          } catch (e) {
+            headers['Authorization'] = `Basic ${btoa(user + ':' + pass)}`;
+          }
+        }
+      } else if (authType === 'apikey') {
+        const key = document.getElementById('api-auth-apikey-key').value.trim();
+        const val = document.getElementById('api-auth-apikey-value').value.trim();
+        const addTo = document.getElementById('api-auth-apikey-addTo').value;
+        
+        if (key && addTo === 'header') {
+          headers[key] = val;
+        }
+      }
+      
+      return headers;
+    },
+
+    compileBody() {
+      const bodyType = document.querySelector('input[name="api-body-type"]:checked')?.value || 'none';
+      if (bodyType === 'none') return null;
+      
+      if (bodyType === 'json' || bodyType === 'raw') {
+        return EditorManager.getValue('api-editor-request', 'api-fallback-request');
+      }
+      
+      if (bodyType === 'form') {
+        const formData = new FormData();
+        const rows = document.querySelectorAll('#api-form-tbody tr');
+        rows.forEach(row => {
+          const checkbox = row.querySelector('.table-checkbox');
+          const keyInput = row.querySelector('.form-key');
+          const valInput = row.querySelector('.form-val');
+          
+          if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
+            formData.append(keyInput.value.trim(), valInput ? valInput.value : '');
+          }
+        });
+        return formData;
+      }
+      
+      return null;
+    },
+
+    generateCurlCommand() {
+      const url = this.getRequestUrl();
+      const method = document.getElementById('api-method').value;
+      let curl = `curl -X ${method} "${url}"`;
+      
+      const headers = this.compileHeaders();
+      for (const key in headers) {
+        curl += ` \\\n  -H "${key}: ${headers[key]}"`;
+      }
+      
+      const body = this.compileBody();
+      if (body) {
+        if (typeof body === 'string') {
+          curl += ` \\\n  -d '${body.replace(/'/g, "'\\''")}'`;
+        } else if (body instanceof FormData) {
+          body.forEach((val, key) => {
+            curl += ` \\\n  -F "${key}=${val}"`;
+          });
+        }
+      }
+      return curl;
+    },
+
+    generateFetchCode() {
+      const url = this.getRequestUrl();
+      const method = document.getElementById('api-method').value;
+      const headers = this.compileHeaders();
+      const body = this.compileBody();
+      
+      let code = `fetch("${url}", {\n  method: "${method}",\n`;
+      if (Object.keys(headers).length > 0) {
+        code += `  headers: ${JSON.stringify(headers, null, 4).replace(/\n/g, '\n  ')},\n`;
+      }
+      if (body) {
+        if (typeof body === 'string') {
+          code += `  body: JSON.stringify(${body.replace(/\n/g, '\n  ')}),\n`;
+        } else {
+          code += `  body: formData,\n`;
+        }
+      }
+      code += `})\n.then(response => response.json())\n.then(data => console.log(data))\n.catch(error => console.error(error));`;
+      return code;
+    },
+
+    generateAxiosCode() {
+      const url = this.getRequestUrl();
+      const method = document.getElementById('api-method').value.toLowerCase();
+      const headers = this.compileHeaders();
+      const body = this.compileBody();
+      
+      let code = `axios({\n  method: "${method}",\n  url: "${url}",\n`;
+      if (Object.keys(headers).length > 0) {
+        code += `  headers: ${JSON.stringify(headers, null, 4).replace(/\n/g, '\n  ')},\n`;
+      }
+      if (body) {
+        if (typeof body === 'string') {
+          code += `  data: ${body.replace(/\n/g, '\n  ')},\n`;
+        } else {
+          code += `  data: formData,\n`;
+        }
+      }
+      code += `})\n.then(response => console.log(response.data))\n.catch(error => console.error(error));`;
+      return code;
+    },
+
     runFetch() {
       const method = document.getElementById('api-method').value;
       const rawUrl = document.getElementById('api-url').value.trim();
@@ -3809,20 +4160,7 @@
       document.getElementById('api-res-loading-state').classList.remove('hidden');
 
       const startTime = Date.now();
-      
-      // Inject API Key into URL query params if active
-      let targetUrl = rawUrl;
-      if (this.activeAuthType === 'apikey') {
-        const key = document.getElementById('api-auth-apikey-key').value.trim();
-        const val = document.getElementById('api-auth-apikey-value').value.trim();
-        const addTo = document.getElementById('api-auth-apikey-addTo').value;
-        
-        if (key && addTo === 'query') {
-          const urlObj = new URL(targetUrl.includes('://') ? targetUrl : 'http://' + targetUrl);
-          urlObj.searchParams.set(key, val);
-          targetUrl = urlObj.toString();
-        }
-      }
+      const targetUrl = this.getRequestUrl();
 
       const options = { 
         method,
@@ -3928,18 +4266,19 @@
           const errTitle = document.getElementById('api-error-title');
           const errMessage = document.getElementById('api-error-message');
           
-          errMessage.textContent = err.message || 'An unknown error occurred.';
+          const msg = err.message || 'An unknown error occurred.';
+          errMessage.textContent = msg;
           
-          if (err.message.includes('CORS') || err.message.includes('fetch')) {
-            errTitle.textContent = 'Network or CORS Error';
-            errMessage.textContent = 'The request failed. This is typically caused by local network restrictions, invalid SSL certificates, or CORS policies blocking cross-origin requests from browser apps.';
-          } else if (err.message.includes('URL') || err.message.includes('parse')) {
+          if (msg.includes('CORS') || msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network') || msg.toLowerCase().includes('failed')) {
+            errTitle.textContent = "CORS blocked — this endpoint doesn't allow browser requests. Use the cURL or Fetch code below to run it from your terminal/server instead.";
+            errMessage.textContent = "The request failed due to CORS security restrictions or network connectivity issues. You can run the request directly from your terminal or backend using the generated snippets.";
+          } else if (msg.toLowerCase().includes('url') || msg.toLowerCase().includes('parse')) {
             errTitle.textContent = 'Invalid URL';
           } else {
             errTitle.textContent = 'Request Failed';
           }
 
-          Toast.show('Request failed: ' + err.message, 'error');
+          Toast.show('Request failed: ' + msg, 'error');
         });
     },
 

@@ -361,12 +361,24 @@
               <div class="search-console-container custom-scrollbar">
                 <div class="search-bar-ui">
                   <input type="text" id="search-query" class="input-text" placeholder="Enter key, value, or regex...">
+                  <button class="btn btn-outline" id="search-regex-btn" title="Toggle Regex">Regex</button>
                   <button class="btn btn-outline" id="search-prev-btn" title="Previous match">▲</button>
                   <button class="btn btn-outline" id="search-next-btn" title="Next match">▼</button>
                   <span class="search-counter" id="search-counter">0 of 0</span>
                 </div>
-                <div class="search-results-list" id="search-results-list">
-                  <div class="search-empty-state">Matches will list here...</div>
+                
+                <div class="search-tree-wrapper">
+                  <div class="panel-sub-header">JSON Tree View</div>
+                  <div class="tree-wrapper custom-scrollbar" id="search-tree-output">
+                    <div class="tree-empty-state">Tree view will generate here...</div>
+                  </div>
+                </div>
+                
+                <div class="search-results-wrapper">
+                  <div class="panel-sub-header">Search Matches</div>
+                  <div class="search-results-list custom-scrollbar" id="search-results-list">
+                    <div class="search-empty-state">Matches will list here...</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -602,6 +614,10 @@
                   <button class="btn-sm btn-outline" id="merge-download-btn">Download</button>
                 </div>
               </div>
+              
+              <!-- Conflicts Container -->
+              <div id="merge-conflicts-container" class="merge-conflicts-container hidden"></div>
+
               <div class="editor-container merge-output-editor" id="merge-editor-output"></div>
               <textarea class="fallback-textarea hidden" id="merge-fallback-output" aria-label="Merged Output Fallback" readonly></textarea>
             </div>
