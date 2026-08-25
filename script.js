@@ -23,7 +23,7 @@
 
     // Initial state / Default JSON to populate editors
     defaultJSON: `{
-  "projectName": "Anti-gravity JSON Developer Toolkit",
+  "projectName": "JSON By JD Developer Toolkit",
   "version": "1.0.0",
   "status": "production-ready",
   "features": [
