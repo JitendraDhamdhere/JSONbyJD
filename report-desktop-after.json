@@ -8064,7 +8064,7 @@
                 "height": 24
               },
               "snippet": "<span data-path=\"$.author.name\" class=\"tree-clickable tree-value-string\">",
-              "nodeLabel": "\"Antigravity Dev\"",
+              "nodeLabel": "\"Jitendra Dhamdhere\"",
               "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #059669, background color: #ffffff, font size: 9.6pt (12.8px), font weight: normal). Expected contrast ratio of 4.5:1"
             },
             "subItems": {
@@ -8106,7 +8106,7 @@
                 "height": 24
               },
               "snippet": "<span data-path=\"$.author.email\" class=\"tree-clickable tree-value-string\">",
-              "nodeLabel": "\"dev@json-toolkit.io\"",
+              "nodeLabel": "\"jitendradeveloper333@gmail.com\"",
               "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #059669, background color: #ffffff, font size: 9.6pt (12.8px), font weight: normal). Expected contrast ratio of 4.5:1"
             },
             "subItems": {
@@ -8148,7 +8148,7 @@
                 "height": 24
               },
               "snippet": "<span data-path=\"$.author.profile.github\" class=\"tree-clickable tree-value-string\">",
-              "nodeLabel": "\"github.com/json-toolkit\"",
+              "nodeLabel": "\"github.com/\"",
               "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #059669, background color: #ffffff, font size: 9.6pt (12.8px), font weight: normal). Expected contrast ratio of 4.5:1"
             },
             "subItems": {
@@ -8190,7 +8190,7 @@
                 "height": 24
               },
               "snippet": "<span data-path=\"$.author.profile.role\" class=\"tree-clickable tree-value-string\">",
-              "nodeLabel": "\"Lead Architect\"",
+              "nodeLabel": "\"Software Developer\"",
               "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.76 (foreground color: #059669, background color: #ffffff, font size: 9.6pt (12.8px), font weight: normal). Expected contrast ratio of 4.5:1"
             },
             "subItems": {
