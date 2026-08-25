@@ -4767,7 +4767,7 @@
 
       // Restore theme preference
       const cachedTheme = localStorage.getItem('toolkit_theme');
-      if (cachedTheme === 'light') {
+      if (cachedTheme === 'light' || !cachedTheme) {
         themeBtn.click();
       }
     },

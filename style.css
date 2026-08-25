@@ -8,54 +8,58 @@
   --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-code: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Courier New', monospace;
 
-  /* Theme: Minimal Developer Dark (Default) */
-  --bg-app: #0f172a;           /* slate-900 */
-  --bg-panel: #1e293b;         /* slate-800 */
-  --bg-editor: #0f172a;        /* slate-900 */
-  --border-color: #334155;     /* slate-700 */
-  --border-color-glow: #3b82f6;/* blue-500 */
-  --primary-accent: #3b82f6;   /* blue-500 */
-  --secondary-accent: #10b981; /* emerald-500 */
-  --text-primary: #f8fafc;     /* slate-50 */
-  --text-secondary: #94a3b8;   /* slate-400 */
-  --header-bg: #1e293b;        /* slate-800 */
-  --sidebar-active-bg: #334155;/* slate-700 */
-  --btn-bg-hover: rgba(59, 130, 246, 0.1);
-  --panel-header-bg: #1e293b;
+  /* Theme: Minimal Developer Dark (Neutral & Emerald) */
+  --bg-app: #121212;           /* neutral-900 */
+  --bg-panel: #1e1e1e;         /* neutral-800 */
+  --bg-editor: #121212;        /* neutral-900 */
+  --border-color: #333333;     /* neutral-700 */
+  --border-color-glow: #10b981;/* emerald-500 */
+  --primary-accent: #10b981;   /* emerald-500 */
+  --primary-accent-hover: #059669; /* emerald-600 */
+  --secondary-accent: #f59e0b; /* amber-500 */
+  --text-primary: #e5e5e5;     /* neutral-200 */
+  --text-secondary: #a3a3a3;   /* neutral-400 */
+  --header-bg: #1e1e1e;        /* neutral-800 */
+  --sidebar-active-bg: #2d2d2d;/* neutral-700/600 */
+  --btn-bg-hover: rgba(16, 185, 129, 0.1);
+  --panel-header-bg: #1e1e1e;  /* neutral-800 */
+  --shadow-premium: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
   
   /* Indicators & Syntax */
   --error-color: #ef4444;      /* red-500 */
   --success-color: #10b981;    /* emerald-500 */
   --warning-color: #f59e0b;    /* amber-500 */
-  --diff-added: rgba(16, 185, 129, 0.1);
-  --diff-removed: rgba(239, 68, 68, 0.1);
-  --diff-changed: rgba(245, 158, 11, 0.1);
+  --diff-added: rgba(16, 185, 129, 0.12);
+  --diff-removed: rgba(239, 68, 68, 0.12);
+  --diff-changed: rgba(245, 158, 11, 0.12);
   
   /* Syntax Highlighting (Dark) */
   --syntax-key: #f472b6;       /* pink-400 */
   --syntax-string: #34d399;    /* emerald-400 */
-  --syntax-number: #60a5fa;    /* blue-400 */
+  --syntax-number: #eab308;    /* yellow-500 */
   --syntax-boolean: #fb923c;   /* orange-400 */
-  --syntax-null: #94a3b8;      /* slate-400 */
+  --syntax-null: #a3a3a3;      /* neutral-400 */
 
   --transition-speed: 150ms;
 }
 
 /* Theme: Minimal Developer Light Override (jsonviewer.stack.hu Style) */
 body.light-theme {
-  --bg-app: #f8fafc;           /* slate-50 */
+  --bg-app: #f1f5f9;           /* slate-100 */
   --bg-panel: #ffffff;         /* white */
   --bg-editor: #ffffff;        /* white */
-  --border-color: #e5e7eb;     /* slate-200 */
+  --border-color: #e2e8f0;     /* slate-200 */
   --border-color-glow: #2563eb;/* blue-600 */
   --primary-accent: #2563eb;   /* blue-600 */
+  --primary-accent-hover: #1d4ed8;
   --secondary-accent: #0d9488; /* teal-600 */
-  --text-primary: #111827;     /* slate-900 */
-  --text-secondary: #6b7280;   /* slate-500 */
+  --text-primary: #0f172a;     /* slate-900 */
+  --text-secondary: #64748b;   /* slate-500 */
   --header-bg: #ffffff;        /* white */
-  --sidebar-active-bg: #f1f5f9;/* slate-100 */
+  --sidebar-active-bg: #f8fafc;/* slate-50 */
   --btn-bg-hover: rgba(37, 99, 235, 0.05);
   --panel-header-bg: #f8fafc;  /* slate-50 */
+  --shadow-premium: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   
   /* Indicators & Syntax */
   --error-color: #dc2626;      /* red-600 */
@@ -66,11 +70,11 @@ body.light-theme {
   --diff-changed: rgba(217, 119, 6, 0.08);
 
   /* Syntax Highlighting (Light) */
-  --syntax-key: #c2185b;       /* pink-700 */
-  --syntax-string: #1b5e20;    /* green-900 */
-  --syntax-number: #0d47a1;    /* blue-900 */
-  --syntax-boolean: #e65100;   /* orange-900 */
-  --syntax-null: #546e7a;      /* blue-grey-600 */
+  --syntax-key: #db2777;       /* pink-600 */
+  --syntax-string: #059669;    /* emerald-600 */
+  --syntax-number: #2563eb;    /* blue-600 */
+  --syntax-boolean: #ea580c;   /* orange-600 */
+  --syntax-null: #64748b;      /* slate-500 */
 }
 
 /* ==========================================================================
@@ -351,12 +355,12 @@ body.light-theme .slider-round {
 /* Sidebar */
 .app-sidebar {
   width: 180px;
-  background: var(--bg-panel);
+  background-color: var(--bg-panel);
   border-right: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   z-index: 90;
   overflow-y: auto;
@@ -486,7 +490,7 @@ body.light-theme .sidebar-item:hover {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: var(--bg-panel);
+  background-color: var(--bg-panel);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
@@ -557,7 +561,7 @@ body.light-theme .sidebar-item:hover {
   background-color: var(--primary-accent);
   color: #ffffff;
   border: 1px solid var(--primary-accent);
-  height: 36px;
+  height: 32px;
   padding: 0 14px;
   border-radius: 6px;
   font-size: 0.8rem;
@@ -571,7 +575,8 @@ body.light-theme .sidebar-item:hover {
 }
 
 .btn:hover {
-  filter: brightness(0.92);
+  background-color: var(--primary-accent-hover);
+  border-color: var(--primary-accent-hover);
 }
 
 .btn-accent {
@@ -587,9 +592,14 @@ body.light-theme .sidebar-item:hover {
 }
 
 .btn-outline {
-  background: transparent;
+  background-color: transparent;
   border: 1px solid var(--border-color);
   color: var(--text-primary);
+  box-shadow: none;
+}
+
+body.light-theme .btn-outline {
+  background-color: transparent;
 }
 
 .btn-outline:hover {
