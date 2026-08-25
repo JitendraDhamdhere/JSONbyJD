@@ -519,7 +519,7 @@ body.light-theme .sidebar-item:hover {
   flex-shrink: 0;
 }
 
-.panel-header h3 {
+.panel-header h2 {
   font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -1784,7 +1784,7 @@ body.light-theme .modal-overlay {
   background: var(--panel-header-bg);
 }
 
-.modal-header h3 {
+.modal-header h2 {
   font-size: 0.9rem;
   font-weight: 600;
 }

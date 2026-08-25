@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JSON Validator Online (Line/Column Errors) | JSON Developer Toolkit</title>
+  <meta name="description" content="Validate JSON online with detailed line and column error reporting. Ensure your JSON is structurally compliant.">
+  <link rel="canonical" href="https://jsonart.vercel.app/json-validator">
+  
+  <!-- Open Graph -->
+  <meta property="og:title" content="JSON Validator Online (Line/Column Errors) | JSON Developer Toolkit">
+  <meta property="og:description" content="Validate JSON online with detailed line and column error reporting. Ensure your JSON is structurally compliant.">
+  <meta property="og:url" content="https://jsonart.vercel.app/json-validator">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://jsonart.vercel.app/og-image.png">
+  
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="JSON Validator Online (Line/Column Errors) | JSON Developer Toolkit">
+  <meta name="twitter:description" content="Validate JSON online with detailed line and column error reporting. Ensure your JSON is structurally compliant.">
+  <meta name="twitter:image" content="https://jsonart.vercel.app/og-image.png">
+  
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "JSON Developer Toolkit",
+    "description": "Premium JSON Developer Toolkit - A state-of-the-art suite of JSON viewer, validator, compare, schema generator, converters, and advanced utilities.",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Web",
+    "offers": {
+      "@type": "Offer",
+      "price": "0"
+    }
+  }
+  </script>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Highlight.js for fallback code blocks -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/atom-one-dark.min.css" id="hljs-theme">
+  
+  <!-- App Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Monaco Editor Loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Does this validate against JSON Schema?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Currently, this tool verifies structural syntax (such as missing brackets, quotes, and trailing commas) rather than validating against custom JSON Schemas."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is my data uploaded for validation?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No, all validation checks are performed client-side within your browser, keeping your sensitive payloads completely secure."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What JSON errors can this catch?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "It catches structural errors such as unquoted keys, trailing commas, unexpected string endings, and mismatched brackets."
+      }
+    }
+  ]
+}
+  </script>
+</head>
+<body>
+
+  <!-- App Wrapper -->
+  <div class="app-container">
+    
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo">
+          <span class="logo-bracket">{</span>
+          <span class="logo-text" style="margin: 0; font-size: inherit; font-weight: inherit; line-height: inherit; display: inline;">JSON By JD</span>
+          <span class="logo-bracket">}</span>
+        </div>
+      </div>
+      
+      <!-- Center Horizontal Pill-Tab Category Selector -->
+      <div class="header-center">
+        <nav class="category-tabs" role="tablist">
+          <button class="category-btn active" data-category="all" role="tab" aria-selected="true" aria-controls="sidebar-menu">All Tools</button>
+          <button class="category-btn" data-category="format" role="tab" aria-selected="false" aria-controls="sidebar-menu">Format & Validate</button>
+          <button class="category-btn" data-category="query" role="tab" aria-selected="false" aria-controls="sidebar-menu">Compare & Search</button>
+          <button class="category-btn" data-category="transform" role="tab" aria-selected="false" aria-controls="sidebar-menu">Schema & Convert</button>
+          <button class="category-btn" data-category="utils" role="tab" aria-selected="false" aria-controls="sidebar-menu">Utilities</button>
+        </nav>
+      </div>
+      
+      <div class="header-right">
+        <button id="shortcuts-btn" class="icon-btn" aria-label="Keyboard Shortcuts" title="Keyboard Shortcuts (Ctrl+/)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2" ry="2"></rect><line x1="7" y1="15" x2="7" y2="15"></line><line x1="10" y1="15" x2="10" y2="15"></line><line x1="14" y1="15" x2="14" y2="15"></line><line x1="17" y1="15" x2="17" y2="15"></line><line x1="7" y1="18" x2="7" y2="18"></line><line x1="10" y1="18" x2="14" y2="18"></line><line x1="17" y1="18" x2="17" y2="18"></line><path d="M7 6l5 5 5-5"></path></svg>
+        </button>
+        <button id="theme-toggle" class="icon-btn" aria-label="Toggle Theme" title="Toggle Light/Dark Mode">
+          <svg class="sun-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          <svg class="moon-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+        <div class="settings-menu-container">
+          <button id="settings-btn" class="icon-btn" aria-label="Settings" title="Settings">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </button>
+          <div id="settings-dropdown" class="settings-dropdown hidden">
+            <button id="clear-session-btn" class="dropdown-item">Clear Saved Session</button>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item-toggle">
+              <span>Vertical Layout (Split)</span>
+              <label class="switch-toggle">
+                <input type="checkbox" id="layout-direction-toggle">
+                <span class="slider-round"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <h1 style="position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;">JSON Validator Online (Line/Column Errors)</h1>
+
+    <!-- Main Workspace -->
+    <div class="app-workspace">
+      
+      <!-- Sidebar -->
+      <aside class="app-sidebar" id="sidebar-menu">
+        <button id="sidebar-toggle" class="sidebar-collapse-btn" aria-label="Collapse Sidebar">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </button>
+        <ul class="sidebar-list">
+          <!-- 14 Tool Items -->
+          <li class="sidebar-item active" data-tool="viewer" data-cat="format">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            <span class="sidebar-label">JSON Viewer</span>
+          </li>
+          <li class="sidebar-item" data-tool="formatter" data-cat="format">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M21 14H11"></path><path d="M21 18H14"></path><path d="M10 10H4"></path></svg>
+            <span class="sidebar-label">JSON Formatter</span>
+          </li>
+          <li class="sidebar-item" data-tool="validator" data-cat="format">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            <span class="sidebar-label">JSON Validator</span>
+          </li>
+          <li class="sidebar-item" data-tool="compare" data-cat="query">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"></path><path d="M8 21H3v-5"></path><path d="M12 12L21 3"></path><path d="M12 12L3 21"></path><path d="M21 16v5h-5"></path><path d="M3 8V3h5"></path></svg>
+            <span class="sidebar-label">JSON Compare</span>
+          </li>
+          <li class="sidebar-item" data-tool="search" data-cat="query">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <span class="sidebar-label">JSON Search</span>
+          </li>
+          <li class="sidebar-item" data-tool="pathexplorer" data-cat="query">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7.9a1 1 0 0 1-.77-.36l-1.66-2.07A1 1 0 0 0 8.9 4H4a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h16z"></path><circle cx="12" cy="13" r="2"></circle><line x1="12" y1="9" x2="12" y2="11"></line><line x1="12" y1="15" x2="12" y2="17"></line><line x1="9" y1="13" x2="11" y2="13"></line><line x1="13" y1="13" x2="15" y2="13"></line></svg>
+            <span class="sidebar-label">Path Explorer</span>
+          </li>
+          <li class="sidebar-item" data-tool="schemagenerator" data-cat="transform">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="9"></line><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="11" y2="17"></line></svg>
+            <span class="sidebar-label">Schema Gen</span>
+          </li>
+          <li class="sidebar-item" data-tool="converter" data-cat="transform">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+            <span class="sidebar-label">Converter</span>
+          </li>
+          <li class="sidebar-item" data-tool="beautify" data-cat="format">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            <span class="sidebar-label">Beautify Tools</span>
+          </li>
+          <li class="sidebar-item" data-tool="statistics" data-cat="query">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            <span class="sidebar-label">Statistics</span>
+          </li>
+          <li class="sidebar-item" data-tool="merge" data-cat="transform">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V12"></path><path d="M12 12l9-5"></path><path d="M12 12L3 7"></path></svg>
+            <span class="sidebar-label">Merge Tool</span>
+          </li>
+          <li class="sidebar-item" data-tool="generator" data-cat="utils">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+            <span class="sidebar-label">JSON Generator</span>
+          </li>
+          <li class="sidebar-item" data-tool="apiviewer" data-cat="utils">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+            <span class="sidebar-label">API Response</span>
+          </li>
+          <li class="sidebar-item" data-tool="advanced" data-cat="utils">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span class="sidebar-label">Advanced Utils</span>
+          </li>
+        </ul>
+      </aside>
+
+      <!-- Main Content Area -->
+      <main class="app-content-panel">
+        
+        <!-- ==============================================
+             TOOL 1: JSON VIEWER
+             ============================================== -->
+        <div id="tool-viewer" class="tool-panel active">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>Input JSON</h2>
+                <div class="panel-header-actions">
+                  <button class="btn-sm btn-outline file-upload-trigger">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    Upload
+                  </button>
+                </div>
+              </div>
+              <div class="editor-container border-glow-on-focus" id="viewer-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="viewer-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <div class="panel-header-tabs">
+                  <button class="tab-btn active" id="viewer-tree-tab">Tree View</button>
+                  <button class="tab-btn" id="viewer-raw-tab">Raw text</button>
+                </div>
+                <div class="panel-header-actions">
+                  <button class="btn-sm btn-outline" id="viewer-collapse-all-btn">Collapse All</button>
+                  <button class="btn-sm btn-outline" id="viewer-expand-all-btn">Expand All</button>
+                  <button class="btn-sm btn-outline" id="viewer-copy-btn">Copy</button>
+                  <button class="btn-sm btn-outline" id="viewer-download-btn">Download</button>
+                </div>
+              </div>
+              
+              <!-- Dynamic Tree Output -->
+              <div class="output-container" id="viewer-tree-container">
+                <div class="tree-wrapper custom-scrollbar" id="viewer-tree-output"></div>
+              </div>
+              
+              <!-- Raw Pre-highlight block -->
+              <div class="output-container hidden" id="viewer-raw-container">
+                <pre class="hljs-wrapper custom-scrollbar"><code class="language-json" id="viewer-raw-output"></code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 2: JSON FORMATTER
+             ============================================== -->
+        <div id="tool-formatter" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>Input JSON</h2>
+                <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+              </div>
+              <div class="editor-container" id="formatter-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="formatter-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <h2>Formatted Output</h2>
+                <div class="panel-header-actions">
+                  <button class="btn-sm btn-accent" id="formatter-beautify-btn">Format (2 Spaces)</button>
+                  <button class="btn-sm btn-outline" id="formatter-minify-btn">Minify</button>
+                  <button class="btn-sm btn-outline" id="formatter-copy-btn">Copy</button>
+                  <button class="btn-sm btn-outline" id="formatter-download-btn">Download</button>
+                </div>
+              </div>
+              <div class="editor-container" id="formatter-editor-output"></div>
+              <textarea class="fallback-textarea hidden" id="formatter-fallback-output" aria-label="JSON Output Fallback" readonly></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 3: JSON VALIDATOR
+             ============================================== -->
+        <div id="tool-validator" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>JSON to Validate</h2>
+                <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+              </div>
+              <div class="editor-container" id="validator-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="validator-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <h2>Validation Report</h2>
+              </div>
+              <div class="validation-status-container custom-scrollbar">
+                <div id="validator-badge-box" class="validator-badge-box pending">
+                  <span id="validator-badge-text">Enter JSON to validate...</span>
+                </div>
+                
+                <div class="validator-details-card hidden" id="validator-error-card">
+                  <div class="card-header error">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                    <span>Syntax Error Found</span>
+                  </div>
+                  <div class="card-body">
+                    <table class="error-details-table">
+                      <tr>
+                        <th>Description:</th>
+                        <td id="val-err-desc">-</td>
+                      </tr>
+                      <tr>
+                        <th>Line:</th>
+                        <td id="val-err-line">-</td>
+                      </tr>
+                      <tr>
+                        <th>Column:</th>
+                        <td id="val-err-col">-</td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+                
+                <div class="validator-details-card hidden" id="validator-success-card">
+                  <div class="card-header success">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    <span>JSON is structurally valid!</span>
+                  </div>
+                  <div class="card-body">
+                    <p>No parser errors were encountered during deep validation. Structure is compliant with JSON specification RFC 8259.</p>
+                    <table class="error-details-table">
+                      <tr>
+                        <th>Parse Time:</th>
+                        <td id="val-success-time">0 ms</td>
+                      </tr>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 4: JSON COMPARE (DIFF)
+             ============================================== -->
+        <div id="tool-compare" class="tool-panel">
+          <div class="panel-layout vertical-split-layout">
+            <div class="comparison-options-bar">
+              <div class="options-left">
+                <label class="checkbox-container">
+                  <input type="checkbox" id="diff-ignore-format" checked>
+                  <span class="checkmark"></span>
+                  Ignore Formatting
+                </label>
+                <label class="checkbox-container">
+                  <input type="checkbox" id="diff-ignore-keys">
+                  <span class="checkmark"></span>
+                  Ignore Key Order
+                </label>
+              </div>
+              <button class="btn btn-accent" id="compare-run-btn">Compare JSON Documents</button>
+            </div>
+            
+            <div class="editors-row-split">
+              <div class="editor-half">
+                <div class="panel-header">
+                  <h2>JSON Document A</h2>
+                  <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+                </div>
+                <div class="editor-container" id="compare-editor-a"></div>
+                <textarea class="fallback-textarea hidden" id="compare-fallback-a" aria-label="JSON Document A Fallback"></textarea>
+              </div>
+              <div class="editor-half">
+                <div class="panel-header">
+                  <h2>JSON Document B</h2>
+                  <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+                </div>
+                <div class="editor-container" id="compare-editor-b"></div>
+                <textarea class="fallback-textarea hidden" id="compare-fallback-b" aria-label="JSON Document B Fallback"></textarea>
+              </div>
+            </div>
+            
+            <div class="comparison-results-panel">
+              <div class="panel-header">
+                <div class="diff-summary-bar" id="diff-summary-output">
+                  0 added · 0 removed · 0 changed · 0 unchanged
+                </div>
+                <button class="btn-sm btn-outline" id="compare-export-btn">Export Report</button>
+              </div>
+              <div class="diff-output-scroller custom-scrollbar">
+                <div class="diff-lines-container" id="compare-diff-output">
+                  <div class="diff-empty-state">Run compare to see differences...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 5: JSON SEARCH
+             ============================================== -->
+        <div id="tool-search" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>JSON Document</h2>
+                <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+              </div>
+              <div class="editor-container" id="search-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="search-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <h2>Search Console</h2>
+              </div>
+              <div class="search-console-container custom-scrollbar">
+                <div class="search-bar-ui">
+                  <input type="text" id="search-query" class="input-text" placeholder="Enter key, value, or regex...">
+                  <button class="btn btn-outline" id="search-regex-btn" title="Toggle Regex">Regex</button>
+                  <button class="btn btn-outline" id="search-prev-btn" title="Previous match">▲</button>
+                  <button class="btn btn-outline" id="search-next-btn" title="Next match">▼</button>
+                  <span class="search-counter" id="search-counter">0 of 0</span>
+                </div>
+                
+                <div class="search-tree-wrapper">
+                  <div class="panel-sub-header">JSON Tree View</div>
+                  <div class="tree-wrapper custom-scrollbar" id="search-tree-output">
+                    <div class="tree-empty-state">Tree view will generate here...</div>
+                  </div>
+                </div>
+                
+                <div class="search-results-wrapper">
+                  <div class="panel-sub-header">Search Matches</div>
+                  <div class="search-results-list custom-scrollbar" id="search-results-list">
+                    <div class="search-empty-state">Matches will list here...</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 6: JSON PATH EXPLORER
+             ============================================== -->
+        <div id="tool-pathexplorer" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>Input JSON</h2>
+                <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+              </div>
+              <div class="editor-container" id="path-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="path-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <h2>JSONPath Builder</h2>
+                <button class="btn-sm btn-outline" id="path-copy-btn">Copy Path</button>
+              </div>
+              
+              <div class="path-explorer-toolbar">
+                <input type="text" id="path-resolved-input" class="input-text font-code" readonly placeholder="Click nodes in the tree to explore JSONPath...">
+              </div>
+              
+              <div class="output-container">
+                <div class="tree-wrapper custom-scrollbar" id="path-tree-output">
+                  <div class="tree-empty-state">Tree view will generate here...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 7: JSON SCHEMA GENERATOR
+             ============================================== -->
+        <div id="tool-schemagenerator" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>Input JSON</h2>
+                <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+              </div>
+              <div class="editor-container" id="schema-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="schema-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <h2>Generated JSON Schema (Draft-07)</h2>
+                <div class="panel-header-actions">
+                  <button class="btn-sm btn-accent" id="schema-generate-btn">Generate Schema</button>
+                  <button class="btn-sm btn-outline" id="schema-download-btn">Download</button>
+                </div>
+              </div>
+              <div class="editor-container" id="schema-editor-output"></div>
+              <textarea class="fallback-textarea hidden" id="schema-fallback-output" aria-label="Schema Output Fallback" readonly></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 8: JSON CONVERTER
+             ============================================== -->
+        <div id="tool-converter" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>Input JSON</h2>
+                <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+              </div>
+              <div class="editor-container" id="converter-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="converter-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <div class="converter-select-box">
+                  <label for="converter-format-select" class="hidden-label">Output Format</label>
+                  <select id="converter-format-select" class="select-dropdown">
+                    <option value="csv">CSV Table</option>
+                    <option value="xml">XML Document</option>
+                    <option value="yaml">YAML Spec</option>
+                    <option value="sql">SQL INSERT Statements</option>
+                    <option value="typescript">TypeScript Interfaces</option>
+                    <option value="java">Java Class Model</option>
+                    <option value="csharp">C# Class Model</option>
+                    <option value="python">Python Dataclass</option>
+                  </select>
+                </div>
+                <div class="panel-header-actions">
+                  <button class="btn-sm btn-accent" id="converter-run-btn">Convert</button>
+                  <button class="btn-sm btn-outline" id="converter-copy-btn">Copy</button>
+                  <button class="btn-sm btn-outline" id="converter-download-btn">Download</button>
+                </div>
+              </div>
+              <div class="editor-container" id="converter-editor-output"></div>
+              <textarea class="fallback-textarea hidden" id="converter-fallback-output" aria-label="Converter Output Fallback" readonly></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 9: BEAUTIFY TOOLS
+             ============================================== -->
+        <div id="tool-beautify" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>Input JSON</h2>
+                <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+              </div>
+              <div class="editor-container" id="beautify-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="beautify-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <h2>Beautifier Controls</h2>
+                <div class="panel-header-actions">
+                  <button class="btn-sm btn-outline" id="beautify-copy-btn">Copy</button>
+                  <button class="btn-sm btn-outline" id="beautify-download-btn">Download</button>
+                </div>
+              </div>
+              
+              <div class="beautify-action-bar">
+                <button class="btn btn-outline" id="beautify-sort-btn">Sort Keys (Alphabetical)</button>
+                <button class="btn btn-outline" id="beautify-dup-btn">Remove Duplicate Keys</button>
+                <button class="btn btn-outline" id="beautify-null-btn">Remove Null Values</button>
+                <button class="btn btn-outline" id="beautify-empty-btn">Remove Empty Objects/Arrays</button>
+              </div>
+
+              <div class="editor-container beautify-output-editor" id="beautify-editor-output"></div>
+              <textarea class="fallback-textarea hidden" id="beautify-fallback-output" aria-label="Beautified Output Fallback" readonly></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 10: JSON STATISTICS
+             ============================================== -->
+        <div id="tool-statistics" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>Source JSON</h2>
+                <button class="btn-sm btn-outline file-upload-trigger">Upload</button>
+              </div>
+              <div class="editor-container" id="stats-editor-input"></div>
+              <textarea class="fallback-textarea hidden" id="stats-fallback-input" aria-label="JSON Input Fallback"></textarea>
+            </div>
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <h2>Structure Statistics</h2>
+                <button class="btn-sm btn-accent" id="stats-calculate-btn">Recalculate Metrics</button>
+              </div>
+              <div class="stats-cards-grid custom-scrollbar" id="stats-grid">
+                <!-- Card templates -->
+                <div class="stats-card">
+                  <div class="stats-title">Total Objects</div>
+                  <div class="stats-value" id="stat-objects">0</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">Total Arrays</div>
+                  <div class="stats-value" id="stat-arrays">0</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">Total Keys</div>
+                  <div class="stats-value" id="stat-keys">0</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">Total Values</div>
+                  <div class="stats-value" id="stat-values">0</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">Max Nesting Depth</div>
+                  <div class="stats-value" id="stat-depth">0</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">File Size</div>
+                  <div class="stats-value" id="stat-size">0 KB</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">Characters</div>
+                  <div class="stats-value" id="stat-chars">0</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">Strings Count</div>
+                  <div class="stats-value" id="stat-strings">0</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">Numbers Count</div>
+                  <div class="stats-value" id="stat-numbers">0</div>
+                </div>
+                <div class="stats-card">
+                  <div class="stats-title">Booleans Count</div>
+                  <div class="stats-value" id="stat-booleans">0</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 11: JSON MERGE TOOL
+             ============================================== -->
+        <div id="tool-merge" class="tool-panel">
+          <div class="panel-layout vertical-split-layout">
+            <div class="merge-options-bar">
+              <div class="merge-settings">
+                <label for="merge-conflict-select" class="hidden-label">Conflict Resolution</label>
+                <select id="merge-conflict-select" class="select-dropdown">
+                  <option value="override">Override (Newer Overwrites Older)</option>
+                  <option value="keep">Keep Existing (Prefer First)</option>
+                  <option value="arrays">Merge Arrays (Concatenate)</option>
+                </select>
+                <button class="btn btn-outline" id="merge-add-panel-btn">+ Add Input Panel</button>
+              </div>
+              <button class="btn btn-accent" id="merge-run-btn">Merge JSON inputs</button>
+            </div>
+            
+            <div class="merge-panels-row" id="merge-inputs-row">
+              <!-- Merged Editors are added here dynamically, up to 3. -->
+            </div>
+            
+            <div class="merge-output-section">
+              <div class="panel-header">
+                <h2>Merged Output JSON</h2>
+                <div class="panel-header-actions">
+                  <button class="btn-sm btn-outline" id="merge-copy-btn">Copy</button>
+                  <button class="btn-sm btn-outline" id="merge-download-btn">Download</button>
+                </div>
+              </div>
+              
+              <!-- Conflicts Container -->
+              <div id="merge-conflicts-container" class="merge-conflicts-container hidden"></div>
+
+              <div class="editor-container merge-output-editor" id="merge-editor-output"></div>
+              <textarea class="fallback-textarea hidden" id="merge-fallback-output" aria-label="Merged Output Fallback" readonly></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 12: JSON GENERATOR
+             ============================================== -->
+        <div id="tool-generator" class="tool-panel">
+          <div class="panel-layout split-layout">
+            <div class="panel-column left-col">
+              <div class="panel-header">
+                <h2>Schema & Templates</h2>
+              </div>
+              <div class="generator-config-box custom-scrollbar">
+                <div class="config-row">
+                  <label for="generator-template-select">Predefined Template</label>
+                  <select id="generator-template-select" class="select-dropdown">
+                    <option value="users">User Profiles</option>
+                    <option value="addresses">Addresses & Maps</option>
+                    <option value="products">Product Catalog</option>
+                    <option value="employees">Employee Directory</option>
+                    <option value="api">Mock API Response</option>
+                    <option value="custom">Custom Schema Builder</option>
+                  </select>
+                </div>
+                
+                <div class="config-row">
+                  <label for="generator-count-input">Items Count (1 - 100)</label>
+                  <input type="number" id="generator-count-input" class="input-text" min="1" max="100" value="10">
+                </div>
+                
+                <!-- Custom Schema Table -->
+                <div class="custom-schema-builder hidden" id="generator-custom-builder">
+                  <h4>Schema Fields</h4>
+                  <table class="schema-table" id="generator-schema-table">
+                    <thead>
+                      <tr>
+                        <th>Field Key</th>
+                        <th>Field Type</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="generator-schema-tbody">
+                      <!-- Schema rows populated here dynamically -->
+                    </tbody>
+                  </table>
+                  <button class="btn btn-outline btn-sm" id="generator-add-row-btn">+ Add Field</button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="panel-column right-col">
+              <div class="panel-header">
+                <h2>Generated JSON Mock Data</h2>
+                <div class="panel-header-actions">
+                  <button class="btn-sm btn-accent" id="generator-run-btn">Generate Data</button>
+                  <button class="btn-sm btn-outline" id="generator-copy-btn">Copy</button>
+                  <button class="btn-sm btn-outline" id="generator-download-btn">Download</button>
+                </div>
+              </div>
+              <div class="editor-container" id="generator-editor-output"></div>
+              <textarea class="fallback-textarea hidden" id="generator-fallback-output" aria-label="Generated Data Fallback" readonly></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 13: API RESPONSE VIEWER
+             ============================================== -->
+        <div id="tool-apiviewer" class="tool-panel">
+          <div class="api-workspace-layout">
+            
+            <!-- API WORKSPACE SIDEBAR -->
+            <aside class="api-sidebar" id="api-sidebar">
+              <div class="api-sidebar-header">
+                <span class="api-sidebar-title">Workspace</span>
+                <button class="api-sidebar-toggle" id="api-sidebar-toggle-btn" title="Collapse Sidebar">◂</button>
+              </div>
+              
+              <!-- Sidebar Tabs -->
+              <div class="api-sidebar-tabs">
+                <button class="api-sidebar-tab-btn active" data-tab="history">History</button>
+                <button class="api-sidebar-tab-btn" data-tab="saved">Saved</button>
+                <button class="api-sidebar-tab-btn" data-tab="collections">Collections</button>
+              </div>
+              
+              <div class="api-sidebar-content custom-scrollbar">
+                <!-- History Section -->
+                <div class="api-sidebar-pane active" id="api-pane-history">
+                  <div class="api-sidebar-actions-row">
+                    <button class="btn-sm btn-outline" id="api-clear-history-btn">Clear All</button>
+                  </div>
+                  <ul class="api-sidebar-list" id="api-history-list">
+                    <li class="empty-placeholder">No request history</li>
+                  </ul>
+                </div>
+                
+                <!-- Saved Section -->
+                <div class="api-sidebar-pane" id="api-pane-saved">
+                  <ul class="api-sidebar-list" id="api-saved-list">
+                    <li class="empty-placeholder">No saved requests</li>
+                  </ul>
+                </div>
+                
+                <!-- Collections Section -->
+                <div class="api-sidebar-pane" id="api-pane-collections">
+                  <div class="api-sidebar-actions-row">
+                    <button class="btn-sm btn-outline" id="api-new-collection-btn">+ New Collection</button>
+                  </div>
+                  <ul class="api-sidebar-list" id="api-collections-list">
+                    <li class="empty-placeholder">No collections created</li>
+                  </ul>
+                </div>
+              </div>
+            </aside>
+            
+            <!-- MAIN TESTING WORKSPACE -->
+            <div class="api-main-workspace">
+              <!-- Top Request Bar -->
+              <div class="api-request-bar-container">
+                <div class="api-request-bar-input-group">
+                  <select id="api-method" class="select-dropdown api-method-select">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="OPTIONS">OPTIONS</option>
+                    <option value="HEAD">HEAD</option>
+                  </select>
+                  <input type="url" id="api-url" class="input-text api-url-input" placeholder="Enter endpoint URL (e.g. https://jsonplaceholder.typicode.com/todos/1)">
+                  <button class="btn btn-accent" id="api-send-btn">Send</button>
+                  <button class="btn btn-outline" id="api-save-btn" title="Save to Collections">Save</button>
+                  <button class="btn btn-outline" id="api-clear-btn" title="Clear Workspace">Clear</button>
+                </div>
+              </div>
+              
+              <!-- Request Config Tabs -->
+              <div class="api-config-tabs-container">
+                <div class="api-config-tabs">
+                  <button class="api-config-tab-btn active" data-config="params">Params</button>
+                  <button class="api-config-tab-btn" data-config="headers">Headers</button>
+                  <button class="api-config-tab-btn" data-config="body">Body</button>
+                  <button class="api-config-tab-btn" data-config="auth">Auth</button>
+                </div>
+                
+                <div class="api-config-content">
+                  <!-- Params Config Panel -->
+                  <div class="api-config-panel active" id="api-config-params">
+                    <div class="table-header-row">
+                      <span>Query Parameters</span>
+                      <button class="btn-sm btn-outline" id="api-param-add-btn">+ Add Param</button>
+                    </div>
+                    <div class="api-table-wrapper custom-scrollbar">
+                      <table class="api-config-table" id="api-params-table">
+                        <thead>
+                          <tr>
+                            <th style="width: 40px; text-align: center;"></th>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th style="width: 60px; text-align: center;"></th>
+                          </tr>
+                        </thead>
+                        <tbody id="api-params-tbody">
+                          <!-- Dynamic parameter rows -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  
+                  <!-- Headers Config Panel -->
+                  <div class="api-config-panel" id="api-config-headers">
+                    <div class="table-header-row">
+                      <span>Request Headers</span>
+                      <button class="btn-sm btn-outline" id="api-header-add-btn">+ Add Header</button>
+                    </div>
+                    <div class="api-table-wrapper custom-scrollbar">
+                      <table class="api-config-table" id="api-headers-table-input">
+                        <thead>
+                          <tr>
+                            <th style="width: 40px; text-align: center;"></th>
+                            <th>Key</th>
+                            <th>Value</th>
+                            <th style="width: 60px; text-align: center;"></th>
+                          </tr>
+                        </thead>
+                        <tbody id="api-headers-tbody">
+                          <!-- Dynamic header rows -->
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  
+                  <!-- Body Config Panel -->
+                  <div class="api-config-panel" id="api-config-body">
+                    <div class="api-body-type-bar">
+                      <div class="api-body-types">
+                        <label class="radio-container">
+                          <input type="radio" name="api-body-type" value="none" checked>
+                          <span class="radio-check"></span> none
+                        </label>
+                        <label class="radio-container">
+                          <input type="radio" name="api-body-type" value="json">
+                          <span class="radio-check"></span> JSON
+                        </label>
+                        <label class="radio-container">
+                          <input type="radio" name="api-body-type" value="form">
+                          <span class="radio-check"></span> Form Data
+                        </label>
+                        <label class="radio-container">
+                          <input type="radio" name="api-body-type" value="raw">
+                          <span class="radio-check"></span> Raw Text
+                        </label>
+                      </div>
+                      
+                      <!-- Hidden checkbox to satisfy existing JS event listeners if any -->
+                      <label class="checkbox-container" style="margin: 0; display: none;">
+                        <input type="checkbox" id="api-body-toggle">
+                        <span class="checkmark"></span> Include Request Body (JSON)
+                      </label>
+                    </div>
+                    
+                    <!-- Body Editors -->
+                    <div class="api-body-editor-container hidden" id="api-body-editor-wrap">
+                      <div class="editor-container api-req-editor" id="api-editor-request"></div>
+                      <textarea class="fallback-textarea hidden" id="api-fallback-request" aria-label="API Request Body Fallback"></textarea>
+                    </div>
+                    
+                    <!-- Form Data Table -->
+                    <div class="api-body-form-container hidden" id="api-body-form-wrap">
+                      <div class="table-header-row">
+                        <span>Form Fields</span>
+                        <button class="btn-sm btn-outline" id="api-form-add-btn">+ Add Field</button>
+                      </div>
+                      <div class="api-table-wrapper custom-scrollbar">
+                        <table class="api-config-table" id="api-form-table">
+                          <thead>
+                            <tr>
+                              <th style="width: 40px; text-align: center;"></th>
+                              <th>Key</th>
+                              <th>Value</th>
+                              <th style="width: 60px; text-align: center;"></th>
+                            </tr>
+                          </thead>
+                          <tbody id="api-form-tbody">
+                            <!-- Dynamic form rows -->
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Auth Config Panel -->
+                  <div class="api-config-panel" id="api-config-auth">
+                    <div class="api-auth-type-bar">
+                      <label for="api-auth-type">Authorization Type</label>
+                      <select id="api-auth-type" class="select-dropdown">
+                        <option value="none">No Auth</option>
+                        <option value="bearer">Bearer Token</option>
+                        <option value="basic">Basic Auth</option>
+                        <option value="apikey">API Key</option>
+                      </select>
+                    </div>
+                    
+                    <div class="api-auth-forms-container">
+                      <!-- No Auth -->
+                      <div class="api-auth-form-pane active" id="api-auth-form-none">
+                        <div class="api-auth-info-card">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                          <span>This request does not use any authorization.</span>
+                        </div>
+                      </div>
+                      
+                      <!-- Bearer Token -->
+                      <div class="api-auth-form-pane" id="api-auth-form-bearer">
+                        <div class="api-auth-row">
+                          <label for="api-auth-bearer-token">Token</label>
+                          <input type="text" id="api-auth-bearer-token" class="input-text font-code" placeholder="Enter Bearer Token">
+                        </div>
+                      </div>
+                      
+                      <!-- Basic Auth -->
+                      <div class="api-auth-form-pane" id="api-auth-form-basic">
+                        <div class="api-auth-row">
+                          <label for="api-auth-basic-username">Username</label>
+                          <input type="text" id="api-auth-basic-username" class="input-text" placeholder="Username">
+                        </div>
+                        <div class="api-auth-row">
+                          <label for="api-auth-basic-password">Password</label>
+                          <input type="password" id="api-auth-basic-password" class="input-text" placeholder="Password">
+                        </div>
+                      </div>
+                      
+                      <!-- API Key -->
+                      <div class="api-auth-form-pane" id="api-auth-form-apikey">
+                        <div class="api-auth-row">
+                          <label for="api-auth-apikey-key">Key</label>
+                          <input type="text" id="api-auth-apikey-key" class="input-text font-code" placeholder="e.g. X-API-Key">
+                        </div>
+                        <div class="api-auth-row">
+                          <label for="api-auth-apikey-value">Value</label>
+                          <input type="text" id="api-auth-apikey-value" class="input-text font-code" placeholder="Enter Key Value">
+                        </div>
+                        <div class="api-auth-row">
+                          <label for="api-auth-apikey-addTo">Add to</label>
+                          <select id="api-auth-apikey-addTo" class="select-dropdown">
+                            <option value="header">Header</option>
+                            <option value="query">Query Params</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Developer Tools Bar -->
+              <div class="api-developer-tools-bar">
+                <button class="btn-sm btn-outline" id="api-copy-curl-btn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  Copy cURL
+                </button>
+                <button class="btn-sm btn-outline" id="api-gen-fetch-btn">Generate Fetch</button>
+                <button class="btn-sm btn-outline" id="api-gen-axios-btn">Generate Axios</button>
+                <button class="btn-sm btn-outline" id="api-import-body-btn">Import Body JSON</button>
+              </div>
+              
+              <!-- Response Area -->
+              <div class="api-response-dashboard">
+                <!-- Response Header Metrics -->
+                <div class="api-response-metrics-bar hidden" id="api-res-metrics-bar">
+                  <div class="api-res-metrics-left">
+                    <span class="status-badge" id="api-res-status">--</span>
+                    <span class="metric-item" id="api-res-time">-- ms</span>
+                    <span class="metric-item" id="api-res-size">-- KB</span>
+                    <span class="metric-item font-code" id="api-res-content-type">--</span>
+                  </div>
+                  <div class="api-res-metrics-right">
+                    <button class="btn-sm btn-outline" id="api-copy-btn">Copy Response</button>
+                    <button class="btn-sm btn-outline" id="api-download-btn">Download</button>
+                  </div>
+                </div>
+                
+                <!-- Response Tabs Bar (hidden by default until response received) -->
+                <div class="api-response-tabs-container hidden" id="api-res-tabs-container">
+                  <div class="api-response-tabs">
+                    <button class="api-response-tab-btn active" data-resp="pretty">Pretty</button>
+                    <button class="api-response-tab-btn" data-resp="raw">Raw</button>
+                    <button class="api-response-tab-btn" data-resp="headers">Headers</button>
+                  </div>
+                  
+                  <div class="api-response-content">
+                    <!-- Pretty Panel -->
+                    <div class="api-response-panel active" id="api-resp-panel-pretty">
+                      <div class="api-pretty-toolbar">
+                        <div class="api-pretty-search-box">
+                          <input type="text" id="api-pretty-search-input" class="input-text btn-sm" placeholder="Search keys or values...">
+                          <span class="api-pretty-search-count" id="api-pretty-search-count">0 of 0</span>
+                          <button class="btn-sm btn-outline" id="api-pretty-search-prev-btn">▲</button>
+                          <button class="btn-sm btn-outline" id="api-pretty-search-next-btn">▼</button>
+                        </div>
+                        <div class="api-pretty-actions">
+                          <button class="btn-sm btn-outline" id="api-pretty-collapse-btn">Collapse All</button>
+                          <button class="btn-sm btn-outline" id="api-pretty-expand-btn">Expand All</button>
+                        </div>
+                      </div>
+                      <div class="output-container" id="api-res-tree-container">
+                        <div class="tree-wrapper custom-scrollbar" id="api-res-tree-output"></div>
+                      </div>
+                    </div>
+                    
+                    <!-- Raw Panel -->
+                    <div class="api-response-panel" id="api-resp-panel-raw">
+                      <div class="api-raw-toolbar">
+                        <label class="checkbox-container" style="margin: 0;">
+                          <input type="checkbox" id="api-raw-wrap-toggle" checked>
+                          <span class="checkmark"></span> Word Wrap
+                        </label>
+                      </div>
+                      <div class="editor-container api-res-editor" id="api-editor-response"></div>
+                      <textarea class="fallback-textarea hidden" id="api-fallback-response" aria-label="API Response Body Fallback" readonly></textarea>
+                    </div>
+                    
+                    <!-- Headers Panel -->
+                    <div class="api-response-panel" id="api-resp-panel-headers">
+                      <div class="headers-table-wrapper custom-scrollbar">
+                        <table class="headers-table" id="api-headers-table">
+                          <thead>
+                            <tr>
+                              <th>Header Name</th>
+                              <th>Value</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td colspan="2" class="empty-headers">No response headers loaded</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Empty State -->
+                <div class="api-response-empty-state" id="api-res-empty-state">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5"><polygon points="5 3 19 3 23 8 23 21 1 21 1 8 5 3"></polygon><polyline points="23 8 1 8"></polyline><path d="M16 12a4 4 0 0 1-8 0"></path></svg>
+                  <h4>No Response Yet</h4>
+                  <p>Enter an endpoint URL and click Send to execute your API request.</p>
+                </div>
+                
+                <!-- Loading State (Skeletons) -->
+                <div class="api-response-loading-state hidden" id="api-res-loading-state">
+                  <div class="skeleton-metric-bar">
+                    <div class="skeleton-item skeleton-badge"></div>
+                    <div class="skeleton-item skeleton-text-sm" style="width: 80px;"></div>
+                    <div class="skeleton-item skeleton-text-sm" style="width: 60px;"></div>
+                  </div>
+                  <div class="skeleton-body">
+                    <div class="skeleton-line skeleton-animation"></div>
+                    <div class="skeleton-line skeleton-animation" style="width: 90%;"></div>
+                    <div class="skeleton-line skeleton-animation" style="width: 75%;"></div>
+                    <div class="skeleton-line skeleton-animation" style="width: 85%;"></div>
+                    <div class="skeleton-line skeleton-animation" style="width: 60%;"></div>
+                  </div>
+                </div>
+                
+                <!-- Error State Card -->
+                <div class="api-response-error-state hidden" id="api-res-error-state">
+                  <div class="api-error-card">
+                    <div class="api-error-card-header">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--error-color)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                      <h4 id="api-error-title">Request Failed</h4>
+                    </div>
+                    <div class="api-error-card-body">
+                      <p id="api-error-message">An error occurred while executing the API request.</p>
+                      <div class="api-error-troubleshoot">
+                        <h5>Troubleshooting Tips:</h5>
+                        <ul>
+                          <li>Check if the target URL is correct and includes the proper protocol (`http://` or `https://`).</li>
+                          <li>Verify that your internet connection is active and stable.</li>
+                          <li>If targetting local endpoints, ensure the service is running and accessible.</li>
+                          <li>CORS security headers may block certain requests; check the browser console for CORS error messages.</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==============================================
+             TOOL 14: ADVANCED UTILITIES
+             ============================================== -->
+        <div id="tool-advanced" class="tool-panel">
+          <div class="panel-layout vertical-split-layout">
+            <!-- Tabs for advanced sub-tools -->
+            <div class="advanced-tabs-bar">
+              <button class="advanced-tab active" data-sub="base64">Base64 Encrypt/Decrypt</button>
+              <button class="advanced-tab" data-sub="jwt">JWT Decoder</button>
+              <button class="advanced-tab" data-sub="uuid">UUID Generator</button>
+              <button class="advanced-tab" data-sub="timestamp">Timestamp Converter</button>
+              <button class="advanced-tab" data-sub="repair">JSON Repair Tool</button>
+            </div>
+            
+            <div class="advanced-content-scroller custom-scrollbar">
+              <!-- SUB-TOOL: Base64 -->
+              <div class="advanced-sub-panel active" id="sub-base64">
+                <div class="sub-split-layout">
+                  <div class="sub-col">
+                    <h4>Source Text / JSON</h4>
+                    <div class="editor-container sub-editor" id="base64-editor-input"></div>
+                    <textarea class="fallback-textarea hidden" id="base64-fallback-input" aria-label="Base64 Input Fallback"></textarea>
+                  </div>
+                  <div class="sub-col controls-col">
+                    <button class="btn btn-outline" id="base64-encode-btn">Encode Base64 ▲</button>
+                    <button class="btn btn-outline" id="base64-decode-btn">Decode Base64 ▼</button>
+                  </div>
+                  <div class="sub-col">
+                    <h4>Output Text / JSON</h4>
+                    <div class="editor-container sub-editor" id="base64-editor-output"></div>
+                    <textarea class="fallback-textarea hidden" id="base64-fallback-output" aria-label="Base64 Output Fallback"></textarea>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- SUB-TOOL: JWT -->
+              <div class="advanced-sub-panel" id="sub-jwt">
+                <div class="jwt-layout">
+                  <div class="jwt-input-row">
+                    <label for="jwt-token-input">Paste encoded JSON Web Token (JWT)</label>
+                    <textarea id="jwt-token-input" class="input-text font-code jwt-token-area" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></textarea>
+                  </div>
+                  <div class="jwt-decode-grids">
+                    <div class="jwt-card">
+                      <h4>Header (Algorithm & Type)</h4>
+                      <pre class="hljs-wrapper custom-scrollbar"><code class="language-json" id="jwt-header-out">{}</code></pre>
+                    </div>
+                    <div class="jwt-card">
+                      <h4>Payload (Claims & Data)</h4>
+                      <pre class="hljs-wrapper custom-scrollbar"><code class="language-json" id="jwt-payload-out">{}</code></pre>
+                    </div>
+                    <div class="jwt-card">
+                      <h4>Signature (Unverified — Decoded Only)</h4>
+                      <pre class="hljs-wrapper custom-scrollbar"><code class="language-json" id="jwt-sig-out">{}</code></pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- SUB-TOOL: UUID -->
+              <div class="advanced-sub-panel" id="sub-uuid">
+                <div class="uuid-config-panel">
+                  <div class="config-row">
+                    <label for="uuid-count-input">Count to generate (1 - 20)</label>
+                    <input type="number" id="uuid-count-input" class="input-text" min="1" max="20" value="5">
+                    <button class="btn btn-accent" id="uuid-gen-btn">Generate UUIDs</button>
+                  </div>
+                  <div class="uuid-results-list" id="uuid-results-list">
+                    <!-- list of generated uuids -->
+                  </div>
+                </div>
+              </div>
+              
+              <!-- SUB-TOOL: Timestamp -->
+              <div class="advanced-sub-panel" id="sub-timestamp">
+                <div class="timestamp-convert-grid">
+                  <div class="timestamp-card">
+                    <h4>Unix Timestamp (Epoch seconds/ms)</h4>
+                    <input type="text" id="ts-epoch-input" class="input-text font-code" placeholder="e.g. 1774281600 or 1774281600000">
+                    <button class="btn btn-outline" id="ts-to-iso-btn">Convert to ISO Date ▼</button>
+                  </div>
+                  <div class="timestamp-card">
+                    <h4>ISO 8601 Date String</h4>
+                    <input type="text" id="ts-iso-input" class="input-text font-code" placeholder="e.g. 2026-03-15T16:00:00Z">
+                    <button class="btn btn-outline" id="ts-to-epoch-btn">Convert to Unix Epoch ▲</button>
+                  </div>
+                </div>
+                <div class="timestamp-results-box" id="timestamp-results-box">
+                  <!-- Conversions results displayed here -->
+                </div>
+              </div>
+              
+              <!-- SUB-TOOL: JSON Repair -->
+              <div class="advanced-sub-panel" id="sub-repair">
+                <div class="sub-split-layout">
+                  <div class="sub-col">
+                    <h4>Malformed / Broken JSON Input</h4>
+                    <div class="editor-container sub-editor" id="repair-editor-input"></div>
+                    <textarea class="fallback-textarea hidden" id="repair-fallback-input" aria-label="Malformed JSON Input Fallback"></textarea>
+                  </div>
+                  <div class="sub-col controls-col">
+                    <button class="btn btn-accent" id="repair-run-btn">Repair JSON </button>
+                  </div>
+                  <div class="sub-col">
+                    <h4>Repaired Output JSON</h4>
+                    <div class="editor-container sub-editor" id="repair-editor-output"></div>
+                    <textarea class="fallback-textarea hidden" id="repair-fallback-output" aria-label="Repaired JSON Output Fallback"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Global Modal: Keyboard Shortcuts -->
+  <div id="shortcuts-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-title">Keyboard Shortcuts Cheatsheet</h2>
+        <button class="close-modal-btn" id="modal-close-btn" aria-label="Close Modal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <table class="shortcuts-table">
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Shortcut</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Format Active JSON input</td>
+              <td><kbd>Ctrl</kbd> + <kbd>Enter</kbd></td>
+            </tr>
+            <tr>
+              <td>Validate Active JSON</td>
+              <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>V</kbd></td>
+            </tr>
+            <tr>
+              <td>Open Comparator (Diff) Tool</td>
+              <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>C</kbd></td>
+            </tr>
+            <tr>
+              <td>Focus Editor Search Box</td>
+              <td><kbd>Ctrl</kbd> + <kbd>F</kbd></td>
+            </tr>
+            <tr>
+              <td>Download Current Output Content</td>
+              <td><kbd>Ctrl</kbd> + <kbd>S</kbd></td>
+            </tr>
+            <tr>
+              <td>Close Dialog / Escaped Overlays</td>
+              <td><kbd>Escape</kbd></td>
+            </tr>
+            <tr>
+              <td>Toggle Sidebar Collapse</td>
+              <td><kbd>Ctrl</kbd> + <kbd>\</kbd></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Global Toast Notification Container -->
+  <div id="toast-container" class="toast-container" role="status" aria-live="polite"></div>
+
+  <!-- Script initialization -->
+  <script defer src="script.js"></script>
+</body>
+</html>

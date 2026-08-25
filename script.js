@@ -17,7 +17,7 @@
     fallbacks: {}, // Registry of active fallback textareas
     debounces: {},
     toolRegistry: {}, // Registry of tool objects { id, init, render, destroy }
-    
+
     // Performance threshold for Monaco fallback (500KB)
     PERF_THRESHOLD_BYTES: 500 * 1024,
 
@@ -35,11 +35,10 @@
     "Custom Schema Generator"
   ],
   "author": {
-    "name": "Antigravity Dev",
-    "email": "dev@json-toolkit.io",
+    "name": "Jitendra Dhamdhere",
+    "email": "jitendradeveloper333@gmail.com",
     "profile": {
-      "github": "github.com/json-toolkit",
-      "role": "Lead Architect"
+      "role": "Software Developer"
     }
   },
   "metrics": {
@@ -70,11 +69,11 @@
 
     show(message, type = 'info') {
       if (!this.container) return;
-      
+
       const toast = document.createElement('div');
       toast.className = `toast ${type}`;
       toast.role = 'alert';
-      
+
       // Icon selection
       let icon = '';
       if (type === 'success') {
@@ -109,9 +108,9 @@
         callback();
         return;
       }
-      
+
       this.pendingInitializations.push(callback);
-      
+
       // Configure Monaco AMD Loader
       if (typeof require !== 'undefined') {
         require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
@@ -185,14 +184,14 @@
           fallback.value = value;
           App.fallbacks[fallbackId] = fallback;
         }
-        
+
         Toast.show(`Large JSON (${(byteSize / 1024).toFixed(1)}KB) detected. Using high-performance plain editor.`, 'warning');
         return false; // Monaco skipped
       } else {
         // Show Monaco, Hide fallback textarea
         if (container) container.classList.remove('hidden');
         if (fallback) fallback.classList.add('hidden');
-        
+
         const editor = App.editors[elementId];
         if (editor) {
           editor.setValue(value);
@@ -283,6 +282,12 @@
   }
 
   // Helper to extract path-value pairs recursively
+  function getJSONPath(path, key) {
+    const isValidId = /^[a-zA-Z_$][0-9a-zA-Z_$]*$/.test(key);
+    if (isValidId) return path === '$' ? `$.${key}` : `${path}.${key}`;
+    return `${path}["${String(key).replace(/"/g, '\\"')}"]`;
+  }
+
   function getKeyValuePairs(obj, path = '$', map = {}) {
     if (obj === null || typeof obj !== 'object') {
       map[path] = obj;
@@ -300,7 +305,7 @@
         map[path] = {};
       } else {
         keys.forEach(key => {
-          const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
+          const childPath = getJSONPath(path, key);
           getKeyValuePairs(obj[key], childPath, map);
         });
       }
@@ -312,7 +317,7 @@
   function searchJSON(node, query, path = '$', keyName = null) {
     const matches = [];
     const lowerQuery = query.toLowerCase();
-    
+
     if (node === null || typeof node !== 'object') {
       if (String(node).toLowerCase().includes(lowerQuery)) {
         matches.push({ path, key: keyName, value: node });
@@ -325,7 +330,7 @@
     } else {
       for (const key in node) {
         if (Object.prototype.hasOwnProperty.call(node, key)) {
-          const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
+          const childPath = getJSONPath(path, key);
           if (key.toLowerCase().includes(lowerQuery)) {
             matches.push({ path: childPath, key: key, value: node[key] });
           }
@@ -416,51 +421,43 @@
   // ==========================================================================
   // CUSTOM ALGORITHMS (DIFF, SCHEMAGEN, CONVERTERS, REPAIR)
   // ==========================================================================
-  
+
   /**
    * 1. Recursive Object Diff Engine
    */
   const DiffEngine = {
-    compare(objA, objB, options = {}) {
-      const diffLines = [];
-      let added = 0, removed = 0, changed = 0, unchanged = 0;
+    compare(strA, strB, options = {}) {
+      let finalA = strA;
+      let finalB = strB;
 
-      // Normalization helpers
-      let normalizedA = objA;
-      let normalizedB = objB;
-
-      if (options.ignoreKeyOrder) {
-        normalizedA = sortKeysDeep(objA);
-        normalizedB = sortKeysDeep(objB);
+      if (options.ignoreFormatting || options.ignoreKeyOrder) {
+        let objA = safeParse(strA);
+        let objB = safeParse(strB);
+        if (options.ignoreKeyOrder && objA && objB) {
+          objA = sortKeysDeep(objA);
+          objB = sortKeysDeep(objB);
+        }
+        if (objA && objB) {
+          finalA = JSON.stringify(objA, null, 2);
+          finalB = JSON.stringify(objB, null, 2);
+        }
       }
 
-      const strA = JSON.stringify(normalizedA, null, 2);
-      const strB = JSON.stringify(normalizedB, null, 2);
-
-      if (options.ignoreFormatting) {
-        // Line-by-line structural diff based on normalized strings
-        const linesA = strA.split('\n');
-        const linesB = strB.split('\n');
-        
-        // Simple Myers-like diff or LCS for clean structural comparison
-        return this.lcsDiff(linesA, linesB);
-      } else {
-        // Compare raw text directly
-        const linesA = strA.split('\n');
-        const linesB = strB.split('\n');
-        return this.lcsDiff(linesA, linesB);
-      }
+      const linesA = finalA.split('\n');
+      const linesB = finalB.split('\n');
+      return this.lcsDiff(linesA, linesB, options.ignoreFormatting);
     },
 
     // Longest Common Subsequence Diff algorithm
-    lcsDiff(linesA, linesB) {
+    lcsDiff(linesA, linesB, ignoreFormatting) {
       const m = linesA.length;
       const n = linesB.length;
       const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+      const compareLines = (a, b) => ignoreFormatting ? a.trim() === b.trim() : a === b;
 
       for (let i = 1; i <= m; i++) {
         for (let j = 1; j <= n; j++) {
-          if (linesA[i - 1].trim() === linesB[j - 1].trim()) {
+          if (compareLines(linesA[i - 1], linesB[j - 1])) {
             dp[i][j] = dp[i - 1][j - 1] + 1;
           } else {
             dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
@@ -473,7 +470,7 @@
       let lineNum = 1;
 
       while (i > 0 || j > 0) {
-        if (i > 0 && j > 0 && linesA[i - 1].trim() === linesB[j - 1].trim()) {
+        if (i > 0 && j > 0 && compareLines(linesA[i - 1], linesB[j - 1])) {
           diff.unshift({
             type: 'unchanged',
             text: linesA[i - 1],
@@ -498,16 +495,34 @@
         }
       }
 
-      // Calculate summaries
+      // Calculate summaries and detect 'changed' lines
       let addedCount = 0, removedCount = 0, changedCount = 0, unchangedCount = 0;
-      diff.forEach(item => {
-        if (item.type === 'added') addedCount++;
-        else if (item.type === 'removed') removedCount++;
-        else unchangedCount++;
-      });
+      const finalDiff = [];
+      let k = 0;
+      while (k < diff.length) {
+        if (k < diff.length - 1 && diff[k].type === 'removed' && diff[k + 1].type === 'added') {
+          diff[k].type = 'changed';
+          diff[k + 1].type = 'changed';
+          finalDiff.push(diff[k], diff[k + 1]);
+          changedCount++;
+          k += 2;
+        } else if (k < diff.length - 1 && diff[k].type === 'added' && diff[k + 1].type === 'removed') {
+          diff[k].type = 'changed';
+          diff[k + 1].type = 'changed';
+          finalDiff.push(diff[k], diff[k + 1]);
+          changedCount++;
+          k += 2;
+        } else {
+          finalDiff.push(diff[k]);
+          if (diff[k].type === 'added') addedCount++;
+          else if (diff[k].type === 'removed') removedCount++;
+          else unchangedCount++;
+          k++;
+        }
+      }
 
       return {
-        diff,
+        diff: finalDiff,
         summary: {
           added: addedCount,
           removed: removedCount,
@@ -556,7 +571,7 @@
     inferType(val) {
       if (val === null) return { type: "null" };
       const type = typeof val;
-      
+
       if (type === 'string') {
         // Detect format profiles
         if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(val)) {
@@ -567,22 +582,22 @@
         }
         return { type: "string" };
       }
-      
+
       if (type === 'number') {
         return { type: Number.isInteger(val) ? "integer" : "number" };
       }
-      
+
       if (type === 'boolean') {
         return { type: "boolean" };
       }
-      
+
       if (Array.isArray(val)) {
         return {
           type: "array",
           items: this.buildItems(val)
         };
       }
-      
+
       if (type === 'object') {
         return {
           type: "object",
@@ -590,18 +605,18 @@
           required: Object.keys(val)
         };
       }
-      
+
       return { type: "any" };
     },
 
     buildItems(arr) {
       if (arr.length === 0) return {};
-      
+
       // Collect types
       const types = arr.map(item => this.inferType(item));
       const uniqueTypes = [];
       const stringified = new Set();
-      
+
       types.forEach(t => {
         const str = JSON.stringify(t);
         if (!stringified.has(str)) {
@@ -613,7 +628,7 @@
       if (uniqueTypes.length === 1) {
         return uniqueTypes[0];
       }
-      
+
       return {
         anyOf: uniqueTypes
       };
@@ -794,7 +809,7 @@
           if (Object.prototype.hasOwnProperty.call(item, key)) {
             const val = item[key];
             const type = typeof val;
-            
+
             if (val === null) {
               code += `  ${key}: null;\n`;
             } else if (Array.isArray(val)) {
@@ -840,7 +855,7 @@
 
         let fields = '';
         let methods = '';
-        
+
         let code = `public class ${name} {\n`;
         for (const key in item) {
           if (Object.prototype.hasOwnProperty.call(item, key)) {
@@ -874,7 +889,7 @@
             }
 
             fields += `  private ${javaType} ${key};\n`;
-            
+
             // Getters/Setters
             methods += `\n  public ${javaType} get${capKey}() {\n    return this.${key};\n  }\n`;
             methods += `  public void set${capKey}(${javaType} ${key}) {\n    this.${key} = ${key};\n  }\n`;
@@ -957,7 +972,7 @@
 
         let code = `@dataclass\nclass ${name}:\n`;
         let hasFields = false;
-        
+
         for (const key in item) {
           if (Object.prototype.hasOwnProperty.call(item, key)) {
             hasFields = true;
@@ -980,7 +995,7 @@
                 pyType = `List['${subName}']`;
                 buildClass(val[0], subName);
               } else {
-                pyType = `List[${val.length > 0 ? typeof val[0] : 'Any'}]`;
+                pyType = `List[${val.length > 0 ? (typeof val[0] === 'string' ? 'str' : typeof val[0] === 'number' ? (Number.isInteger(val[0]) ? 'int' : 'float') : typeof val[0] === 'boolean' ? 'bool' : 'Any') : 'Any'}]`;
               }
             } else if (type === 'object') {
               const subName = `${name}_${capKey}`;
@@ -991,11 +1006,11 @@
             code += `    ${key}: ${pyType}\n`;
           }
         }
-        
+
         if (!hasFields) {
           code += `    pass\n`;
         }
-        
+
         classes += code + `\n`;
       };
 
@@ -1037,10 +1052,10 @@
       let inString = false;
       let stringChar = null;
       let i = 0;
-      
+
       while (i < text.length) {
         const char = text[i];
-        
+
         if ((char === '"' || char === "'") && text[i - 1] !== '\\') {
           if (!inString) {
             inString = true;
@@ -1057,7 +1072,7 @@
         }
         i++;
       }
-      
+
       output = output.replace(/,\s*([\]}])/g, '$1');
       return output;
     }
@@ -1070,7 +1085,7 @@
   function generateInteractiveTreeDOM(obj, options = { onClickNode: null }) {
     const root = document.createElement('div');
     root.className = 'tree-root';
-    
+
     function buildNode(val, path, keyName = null) {
       const node = document.createElement('div');
       node.className = 'tree-node';
@@ -1098,7 +1113,7 @@
           keySpan.textContent = `"${keyName}"`;
           keySpan.dataset.path = path;
           row.appendChild(keySpan);
-          
+
           const colon = document.createElement('span');
           colon.textContent = ': ';
           row.appendChild(colon);
@@ -1113,7 +1128,7 @@
           sizeLabel.textContent = `[ ] ${val.length} items`;
         }
         row.appendChild(sizeLabel);
-        
+
         details.appendChild(row);
 
         // Append children recursively
@@ -1121,12 +1136,11 @@
         childrenContainer.className = 'tree-children';
 
         if (isObject) {
-          for (const key in val) {
-            if (Object.prototype.hasOwnProperty.call(val, key)) {
-              const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
-              childrenContainer.appendChild(buildNode(val[key], childPath, key));
-            }
-          }
+          const keys = Object.keys(val);
+          keys.forEach(key => {
+            const childPath = getJSONPath(path, key);
+            childrenContainer.appendChild(buildNode(val[key], childPath, key));
+          });
         } else {
           val.forEach((item, idx) => {
             const childPath = `${path}[${idx}]`;
@@ -1176,7 +1190,7 @@
           keySpan.textContent = typeof keyName === 'number' ? `[${keyName}]` : `"${keyName}"`;
           keySpan.dataset.path = path;
           row.appendChild(keySpan);
-          
+
           const colon = document.createElement('span');
           colon.textContent = ': ';
           row.appendChild(colon);
@@ -1242,7 +1256,7 @@
     id: 'viewer',
     init() {
       EditorManager.create('viewer-editor-input');
-      
+
       const onContentChange = () => {
         debounce('viewer-save', () => this.saveSession(), 1000);
         this.render();
@@ -1338,7 +1352,7 @@
       const text = EditorManager.getValue('viewer-editor-input', 'viewer-fallback-input');
       const formatted = formatJSON(text);
       const rawOutput = document.getElementById('viewer-raw-output');
-      
+
       if (!rawOutput) return;
 
       rawOutput.textContent = formatted;
@@ -1378,7 +1392,7 @@
       const editor = App.editors['formatter-editor-input'];
       if (editor) {
         editor.onDidChangeModelContent(onContentChange);
-        
+
         // Auto-indent on paste
         editor.onDidPaste(() => {
           this.runFormatter(2);
@@ -1392,7 +1406,7 @@
       // Buttons
       document.getElementById('formatter-beautify-btn').addEventListener('click', () => this.runFormatter(2));
       document.getElementById('formatter-minify-btn').addEventListener('click', () => this.runFormatter(0));
-      
+
       document.getElementById('formatter-copy-btn').addEventListener('click', () => {
         const out = EditorManager.getValue('formatter-editor-output', 'formatter-fallback-output');
         if (out) {
@@ -1409,7 +1423,7 @@
     runFormatter(spaces) {
       const input = EditorManager.getValue('formatter-editor-input', 'formatter-fallback-input');
       const parsed = safeParse(input);
-      
+
       if (!input.trim()) {
         Toast.show('Please enter JSON input first', 'warning');
         return;
@@ -1483,7 +1497,7 @@
       try {
         JSON.parse(input);
         const parseTime = (performance.now() - startTime).toFixed(2);
-        
+
         // Success
         badgeBox.className = 'validator-badge-box success';
         badgeText.textContent = 'Valid JSON ✓';
@@ -1520,6 +1534,10 @@
           const linesUpToPos = input.substring(0, pos).split('\n');
           line = String(linesUpToPos.length);
           col = String(linesUpToPos[linesUpToPos.length - 1].length + 1);
+        } else if (errMsg.includes('Unexpected end of JSON input') || errMsg.includes('position')) {
+          const lines = input.split('\n');
+          line = String(lines.length);
+          col = String(lines[lines.length - 1].length + 1);
         }
 
         document.getElementById('val-err-desc').textContent = desc;
@@ -1610,7 +1628,7 @@
       const ignoreFormat = document.getElementById('diff-ignore-format').checked;
       const ignoreKeys = document.getElementById('diff-ignore-keys').checked;
 
-      const result = DiffEngine.compare(objA, objB, {
+      const result = DiffEngine.compare(txtA, txtB, {
         ignoreFormatting: ignoreFormat,
         ignoreKeyOrder: ignoreKeys
       });
@@ -1907,7 +1925,7 @@
         } else {
           for (const key in node) {
             if (Object.prototype.hasOwnProperty.call(node, key)) {
-              const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
+              const childPath = getJSONPath(path, key);
               found.push(...findMatches(node[key], childPath, key));
             }
           }
@@ -2158,7 +2176,7 @@
 
       const schema = SchemaGenerator.generate(obj);
       const outputStr = JSON.stringify(schema, null, 2);
-      
+
       EditorManager.checkAndLoadValue('schema-editor-output', 'schema-fallback-output', outputStr);
       Toast.show('JSON Schema generated successfully', 'success');
     },
@@ -2397,7 +2415,7 @@
       if (obj === null || typeof obj !== 'object') return obj;
       if (Array.isArray(obj)) {
         const cleanArr = obj.map(item => this.removeEmptyStructures(item))
-                            .filter(item => item !== undefined && item !== null);
+          .filter(item => item !== undefined && item !== null);
         return cleanArr.length > 0 ? cleanArr : undefined;
       }
 
@@ -2471,7 +2489,7 @@
       let keys = 0;
       let values = 0;
       let maxDepth = 0;
-      
+
       let strings = 0;
       let numbers = 0;
       let booleans = 0;
@@ -2515,11 +2533,11 @@
       document.getElementById('stat-keys').textContent = keys;
       document.getElementById('stat-values').textContent = values;
       document.getElementById('stat-depth').textContent = maxDepth;
-      
+
       const bytesSize = new Blob([input]).size;
       document.getElementById('stat-size').textContent = `${(bytesSize / 1024).toFixed(2)} KB`;
       document.getElementById('stat-chars').textContent = input.length;
-      
+
       document.getElementById('stat-strings').textContent = strings;
       document.getElementById('stat-numbers').textContent = numbers;
       document.getElementById('stat-booleans').textContent = booleans;
@@ -2544,8 +2562,8 @@
   // Recursive deep merge with conflict tracking
   function mergeObjects(target, source, strategy, path = '$', conflicts = []) {
     for (const key of Object.keys(source)) {
-      const childPath = path === '$' ? `$.${key}` : `${path}.${key}`;
-      
+      const childPath = getJSONPath(path, key);
+
       if (!(key in target)) {
         target[key] = deepClone(source[key]);
         continue;
@@ -2613,7 +2631,7 @@
       this.activePanelIds = [];
       this.nextPanelId = 0;
       document.getElementById('merge-inputs-row').innerHTML = '';
-      
+
       // Default: create 2 panels
       this.addPanel();
       this.addPanel();
@@ -2627,7 +2645,7 @@
       // Buttons
       document.getElementById('merge-add-panel-btn').onclick = () => this.addPanel();
       document.getElementById('merge-run-btn').onclick = () => this.runMerge();
-      
+
       document.getElementById('merge-copy-btn').onclick = () => {
         const val = EditorManager.getValue('merge-editor-output', 'merge-fallback-output');
         if (val) navigator.clipboard.writeText(val).then(() => Toast.show('Merged JSON copied', 'success'));
@@ -2648,9 +2666,9 @@
       this.nextPanelId++;
       const id = this.nextPanelId;
       this.activePanelIds.push(id);
-      
+
       const panelIndex = this.activePanelIds.length;
-      
+
       const panel = document.createElement('div');
       panel.className = 'merge-panel-item';
       panel.id = `merge-panel-wrap-${id}`;
@@ -2788,11 +2806,11 @@
             <div class="conflict-badge">Conflicts detected: ${conflicts.length}</div>
             <div class="conflict-list custom-scrollbar">
               ${conflicts.map(c => {
-                const wonStr = formatConflictValue(c.won);
-                const lostStr = formatConflictValue(c.lost);
-                const actionWord = strategy === 'keep' ? 'kept' : 'overrode';
-                return `<div class="conflict-item"><span class="conflict-path">${c.path}</span> → <span class="conflict-won">${wonStr}</span> ${actionWord} <span class="conflict-lost">${lostStr}</span></div>`;
-              }).join('')}
+            const wonStr = formatConflictValue(c.won);
+            const lostStr = formatConflictValue(c.lost);
+            const actionWord = strategy === 'keep' ? 'kept' : 'overrode';
+            return `<div class="conflict-item"><span class="conflict-path">${c.path}</span> → <span class="conflict-won">${wonStr}</span> ${actionWord} <span class="conflict-lost">${lostStr}</span></div>`;
+          }).join('')}
             </div>
           `;
         } else {
@@ -2853,7 +2871,7 @@
       this.customFields = [];
       const tbody = document.getElementById('generator-schema-tbody');
       tbody.innerHTML = '';
-      
+
       // Default rows
       this.addCustomRow('id', 'uuid');
       this.addCustomRow('username', 'name');
@@ -2863,7 +2881,7 @@
     addCustomRow(defaultKey = '', defaultType = 'name') {
       const tbody = document.getElementById('generator-schema-tbody');
       const idx = this.customFields.length;
-      
+
       const row = document.createElement('tr');
       row.id = `gen-row-${idx}`;
       row.innerHTML = `
@@ -2901,7 +2919,7 @@
       const template = document.getElementById('generator-template-select').value;
       const countInput = document.getElementById('generator-count-input');
       const count = Math.min(100, Math.max(1, parseInt(countInput.value, 10) || 10));
-      
+
       let items = [];
 
       if (template === 'custom') {
@@ -2932,7 +2950,7 @@
     generateMockValue(type) {
       const firstNames = ['James', 'Mary', 'John', 'Patricia', 'Robert', 'Jennifer', 'Michael', 'Linda'];
       const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Wilson'];
-      
+
       switch (type) {
         case 'uuid':
           return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -2963,7 +2981,7 @@
 
     generateTemplateMock(template, id) {
       const mockVal = (type) => this.generateMockValue(type);
-      
+
       if (template === 'users') {
         return {
           id,
@@ -3015,7 +3033,7 @@
           skills: ['Java', 'SQL', 'Git', 'Project Management'].slice(0, Math.floor(Math.random() * 3) + 1)
         };
       }
-      
+
       // api mock
       return {
         success: true,
@@ -3032,7 +3050,7 @@
       };
     },
 
-    restoreSession() {}
+    restoreSession() { }
   };
 
   // 13. API RESPONSE VIEWER
@@ -3150,16 +3168,16 @@
         clearBtn.addEventListener('click', () => {
           const urlEl = document.getElementById('api-url');
           if (urlEl) urlEl.value = '';
-          
+
           const paramsTbody = document.getElementById('api-params-tbody');
           if (paramsTbody) paramsTbody.innerHTML = '';
-          
+
           const headersTbody = document.getElementById('api-headers-tbody');
           if (headersTbody) headersTbody.innerHTML = '';
-          
+
           const formTbody = document.getElementById('api-form-tbody');
           if (formTbody) formTbody.innerHTML = '';
-          
+
           this.addParamRow('', '', true, true);
           this.addHeaderRow('', '', true);
           this.addFormRow('', '', true);
@@ -3168,19 +3186,19 @@
           const authSelect = document.getElementById('api-auth-type');
           if (authSelect) authSelect.value = 'none';
           this.switchAuthType('none');
-          
+
           const tokenInput = document.getElementById('api-auth-bearer-token');
           if (tokenInput) tokenInput.value = '';
-          
+
           const userInput = document.getElementById('api-auth-basic-username');
           if (userInput) userInput.value = '';
-          
+
           const passInput = document.getElementById('api-auth-basic-password');
           if (passInput) passInput.value = '';
-          
+
           const keyInput = document.getElementById('api-auth-apikey-key');
           if (keyInput) keyInput.value = '';
-          
+
           const valInput = document.getElementById('api-auth-apikey-value');
           if (valInput) valInput.value = '';
 
@@ -3192,16 +3210,16 @@
           // Reset Response Dashboard
           const emptyState = document.getElementById('api-res-empty-state');
           if (emptyState) emptyState.classList.remove('hidden');
-          
+
           const metricsBar = document.getElementById('api-res-metrics-bar');
           if (metricsBar) metricsBar.classList.add('hidden');
-          
+
           const tabsContainer = document.getElementById('api-res-tabs-container');
           if (tabsContainer) tabsContainer.classList.add('hidden');
-          
+
           const loadingState = document.getElementById('api-res-loading-state');
           if (loadingState) loadingState.classList.add('hidden');
-          
+
           const errorState = document.getElementById('api-res-error-state');
           if (errorState) errorState.classList.add('hidden');
 
@@ -3217,10 +3235,10 @@
         btn.addEventListener('click', () => {
           tabBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          
+
           const tabName = btn.dataset.tab;
           this.activeSidebarTab = tabName;
-          
+
           document.querySelectorAll('.api-sidebar-pane').forEach(p => p.classList.remove('active'));
           const pane = document.getElementById(`api-pane-${tabName}`);
           if (pane) pane.classList.add('active');
@@ -3263,10 +3281,10 @@
         btn.addEventListener('click', () => {
           tabBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          
+
           const configName = btn.dataset.config;
           this.activeConfigTab = configName;
-          
+
           document.querySelectorAll('.api-config-panel').forEach(p => p.classList.remove('active'));
           const pane = document.getElementById(`api-config-${configName}`);
           if (pane) pane.classList.add('active');
@@ -3301,11 +3319,11 @@
 
     switchBodyType(type) {
       this.activeBodyType = type;
-      
+
       const bodyToggle = document.getElementById('api-body-toggle');
       const editorWrap = document.getElementById('api-body-editor-wrap');
       const formWrap = document.getElementById('api-body-form-wrap');
-      
+
       if (type === 'none') {
         if (bodyToggle) bodyToggle.checked = false;
         if (editorWrap) editorWrap.classList.add('hidden');
@@ -3314,7 +3332,7 @@
         if (bodyToggle) bodyToggle.checked = true;
         if (editorWrap) editorWrap.classList.remove('hidden');
         if (formWrap) formWrap.classList.add('hidden');
-        
+
         const editor = App.editors['api-editor-request'];
         if (editor) {
           monaco.editor.setModelLanguage(editor.getModel(), type === 'json' ? 'json' : 'plaintext');
@@ -3333,14 +3351,14 @@
           this.addParamRow('', '', true, true);
         });
       }
-      
+
       const headerAddBtn = document.getElementById('api-header-add-btn');
       if (headerAddBtn) {
         headerAddBtn.addEventListener('click', () => {
           this.addHeaderRow('', '', true);
         });
       }
-      
+
       const formAddBtn = document.getElementById('api-form-add-btn');
       if (formAddBtn) {
         formAddBtn.addEventListener('click', () => {
@@ -3411,10 +3429,10 @@
         btn.addEventListener('click', () => {
           tabBtns.forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
-          
+
           const respName = btn.dataset.resp;
           this.activeResponseTab = respName;
-          
+
           document.querySelectorAll('.api-response-panel').forEach(p => p.classList.remove('active'));
           const pane = document.getElementById(`api-resp-panel-${respName}`);
           if (pane) {
@@ -3451,7 +3469,7 @@
           document.querySelectorAll('#api-res-tree-output details').forEach(d => d.open = false);
         });
       }
-      
+
       const expandBtn = document.getElementById('api-pretty-expand-btn');
       if (expandBtn) {
         expandBtn.addEventListener('click', () => {
@@ -3464,7 +3482,7 @@
       if (searchInput) {
         searchInput.addEventListener('input', () => this.runPrettySearch());
       }
-      
+
       const prevBtn = document.getElementById('api-pretty-search-prev-btn');
       if (prevBtn) {
         prevBtn.addEventListener('click', () => {
@@ -3499,28 +3517,28 @@
           <input type="text" class="input-text param-val" placeholder="Value" value="${val}">
         </td>
         <td style="text-align: center;">
-          <button class="btn-delete-row" title="Delete Row">×</button>
+          <button class="btn-delete-row" title="Delete Row" aria-label="Delete Row">×</button>
         </td>
       `;
-      
+
       tbody.appendChild(tr);
-      
+
       const checkbox = tr.querySelector('.table-checkbox');
       const keyInput = tr.querySelector('.param-key');
       const valInput = tr.querySelector('.param-val');
       const deleteBtn = tr.querySelector('.btn-delete-row');
-      
+
       const onInputChange = () => {
         if (tr === tbody.lastElementChild && (keyInput.value.trim() || valInput.value.trim())) {
           this.addParamRow('', '', true, true);
         }
         this.syncParamsTableToUrl();
       };
-      
+
       checkbox.addEventListener('change', onInputChange);
       keyInput.addEventListener('input', onInputChange);
       valInput.addEventListener('input', onInputChange);
-      
+
       deleteBtn.addEventListener('click', () => {
         tr.remove();
         if (tbody.children.length === 0) {
@@ -3545,27 +3563,27 @@
           <input type="text" class="input-text header-val" placeholder="Value" value="${val}">
         </td>
         <td style="text-align: center;">
-          <button class="btn-delete-row" title="Delete Row">×</button>
+          <button class="btn-delete-row" title="Delete Row" aria-label="Delete Row">×</button>
         </td>
       `;
-      
+
       tbody.appendChild(tr);
-      
+
       const checkbox = tr.querySelector('.table-checkbox');
       const keyInput = tr.querySelector('.header-key');
       const valInput = tr.querySelector('.header-val');
       const deleteBtn = tr.querySelector('.btn-delete-row');
-      
+
       const onInputChange = () => {
         if (tr === tbody.lastElementChild && (keyInput.value.trim() || valInput.value.trim())) {
           this.addHeaderRow('', '', true);
         }
       };
-      
+
       checkbox.addEventListener('change', onInputChange);
       keyInput.addEventListener('input', onInputChange);
       valInput.addEventListener('input', onInputChange);
-      
+
       deleteBtn.addEventListener('click', () => {
         tr.remove();
         if (tbody.children.length === 0) {
@@ -3589,27 +3607,27 @@
           <input type="text" class="input-text form-val" placeholder="Value" value="${val}">
         </td>
         <td style="text-align: center;">
-          <button class="btn-delete-row" title="Delete Row">×</button>
+          <button class="btn-delete-row" title="Delete Row" aria-label="Delete Row">×</button>
         </td>
       `;
-      
+
       tbody.appendChild(tr);
-      
+
       const checkbox = tr.querySelector('.table-checkbox');
       const keyInput = tr.querySelector('.form-key');
       const valInput = tr.querySelector('.form-val');
       const deleteBtn = tr.querySelector('.btn-delete-row');
-      
+
       const onInputChange = () => {
         if (tr === tbody.lastElementChild && (keyInput.value.trim() || valInput.value.trim())) {
           this.addFormRow('', '', true);
         }
       };
-      
+
       checkbox.addEventListener('change', onInputChange);
       keyInput.addEventListener('input', onInputChange);
       valInput.addEventListener('input', onInputChange);
-      
+
       deleteBtn.addEventListener('click', () => {
         tr.remove();
         if (tbody.children.length === 0) {
@@ -3632,7 +3650,7 @@
 
         const queryString = urlVal.substring(questionIdx + 1);
         const searchParams = new URLSearchParams(queryString);
-        
+
         document.getElementById('api-params-tbody').innerHTML = '';
         searchParams.forEach((val, key) => {
           this.addParamRow(key, val, true, false);
@@ -3648,23 +3666,23 @@
     syncParamsTableToUrl() {
       const urlInput = document.getElementById('api-url');
       const urlVal = urlInput.value.trim();
-      
+
       const questionIdx = urlVal.indexOf('?');
       const baseUrl = questionIdx === -1 ? urlVal : urlVal.substring(0, questionIdx);
-      
+
       const searchParams = new URLSearchParams();
       const rows = document.querySelectorAll('#api-params-tbody tr');
-      
+
       rows.forEach(row => {
         const checkbox = row.querySelector('.table-checkbox');
         const keyInput = row.querySelector('.param-key');
         const valInput = row.querySelector('.param-val');
-        
+
         if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
           searchParams.append(keyInput.value.trim(), valInput ? valInput.value : '');
         }
       });
-      
+
       const queryString = searchParams.toString();
       urlInput.value = queryString ? `${baseUrl}?${queryString}` : baseUrl;
     },
@@ -3674,7 +3692,7 @@
     saveRequest(name) {
       const url = document.getElementById('api-url').value.trim();
       const method = document.getElementById('api-method').value;
-      
+
       const reqObj = {
         id: 'req-' + Date.now(),
         name: name,
@@ -3716,7 +3734,7 @@
     loadRequest(req) {
       document.getElementById('api-url').value = req.url;
       document.getElementById('api-method').value = req.method;
-      
+
       this.syncUrlToParamsTable();
 
       // Load Auth
@@ -3744,12 +3762,12 @@
     renderHistory() {
       const list = document.getElementById('api-history-list');
       list.innerHTML = '';
-      
+
       if (this.history.length === 0) {
         list.innerHTML = `<li class="empty-placeholder">No request history</li>`;
         return;
       }
-      
+
       this.history.forEach((req, idx) => {
         const li = document.createElement('li');
         li.className = 'api-sidebar-list-item';
@@ -3759,11 +3777,11 @@
             <span class="request-url" title="${req.url}">${req.url}</span>
           </div>
           <div class="api-sidebar-list-item-actions">
-            <button class="api-sidebar-action-btn run" title="Run request">▶</button>
-            <button class="api-sidebar-action-btn delete" title="Remove">×</button>
+            <button class="api-sidebar-action-btn run" title="Run request" aria-label="Run request">▶</button>
+            <button class="api-sidebar-action-btn delete" title="Remove" aria-label="Remove">×</button>
           </div>
         `;
-        
+
         li.querySelector('.api-sidebar-list-item-content').addEventListener('click', () => this.loadRequest(req));
         li.querySelector('.run').addEventListener('click', (e) => {
           e.stopPropagation();
@@ -3783,12 +3801,12 @@
     renderSaved() {
       const list = document.getElementById('api-saved-list');
       list.innerHTML = '';
-      
+
       if (this.saved.length === 0) {
         list.innerHTML = `<li class="empty-placeholder">No saved requests</li>`;
         return;
       }
-      
+
       this.saved.forEach((req, idx) => {
         const li = document.createElement('li');
         li.className = 'api-sidebar-list-item';
@@ -3798,12 +3816,12 @@
             <span class="request-name" title="${req.name}">${req.name}</span>
           </div>
           <div class="api-sidebar-list-item-actions">
-            <button class="api-sidebar-action-btn run" title="Run request">▶</button>
-            <button class="api-sidebar-action-btn rename" title="Rename">✎</button>
-            <button class="api-sidebar-action-btn delete" title="Remove">×</button>
+            <button class="api-sidebar-action-btn run" title="Run request" aria-label="Run request">▶</button>
+            <button class="api-sidebar-action-btn rename" title="Rename" aria-label="Rename">✎</button>
+            <button class="api-sidebar-action-btn delete" title="Remove" aria-label="Remove">×</button>
           </div>
         `;
-        
+
         li.querySelector('.api-sidebar-list-item-content').addEventListener('click', () => this.loadRequest(req));
         li.querySelector('.run').addEventListener('click', (e) => {
           e.stopPropagation();
@@ -3832,17 +3850,17 @@
     renderCollections() {
       const list = document.getElementById('api-collections-list');
       list.innerHTML = '';
-      
+
       if (this.collections.length === 0) {
         list.innerHTML = `<li class="empty-placeholder">No collections created</li>`;
         return;
       }
-      
+
       this.collections.forEach((col, colIdx) => {
         const li = document.createElement('li');
         li.style.padding = '8px';
         li.style.borderBottom = '1px solid var(--border-color)';
-        
+
         let requestsHtml = '';
         if (col.requests.length === 0) {
           requestsHtml = `<div style="padding: 4px 12px; font-size: 0.72rem; color: var(--text-secondary); font-style: italic;">Empty Collection</div>`;
@@ -3855,8 +3873,8 @@
                   <span class="request-name" style="font-size: 0.72rem;">${req.name}</span>
                 </div>
                 <div class="api-sidebar-list-item-actions">
-                  <button class="api-sidebar-action-btn run-col-req" title="Run request">▶</button>
-                  <button class="api-sidebar-action-btn delete-col-req" title="Remove">×</button>
+                  <button class="api-sidebar-action-btn run-col-req" title="Run request" aria-label="Run request">▶</button>
+                  <button class="api-sidebar-action-btn delete-col-req" title="Remove" aria-label="Remove">×</button>
                 </div>
               </div>
             `;
@@ -3866,18 +3884,18 @@
         li.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: 600; font-size: 0.8rem;">
             <span>📁 ${col.name}</span>
-            <button class="api-sidebar-action-btn delete-col" title="Delete Collection" style="opacity: 0.7;">×</button>
+            <button class="api-sidebar-action-btn delete-col" title="Delete Collection" aria-label="Delete Collection" style="opacity: 0.7;">×</button>
           </div>
           <div class="collection-children" style="margin-top: 4px;">
             ${requestsHtml}
           </div>
         `;
-        
+
         // Listeners
         li.querySelectorAll('.col-req').forEach(item => {
           const reqIdx = parseInt(item.dataset.reqIdx);
           const req = col.requests[reqIdx];
-          
+
           item.querySelector('.api-sidebar-list-item-content').addEventListener('click', () => this.loadRequest(req));
           item.querySelector('.run-col-req').addEventListener('click', (e) => {
             e.stopPropagation();
@@ -3900,7 +3918,7 @@
             this.renderCollections();
           }
         });
-        
+
         list.appendChild(li);
       });
     },
@@ -3908,7 +3926,7 @@
     runPrettySearch() {
       const query = document.getElementById('api-pretty-search-input').value.trim().toLowerCase();
       const counter = document.getElementById('api-pretty-search-count');
-      
+
       // Clear previous highlights
       document.querySelectorAll('#api-res-tree-output .search-highlight').forEach(el => {
         const parent = el.parentNode;
@@ -3917,38 +3935,38 @@
         }
       });
       document.querySelectorAll('#api-res-tree-output .search-active').forEach(el => el.classList.remove('search-active'));
-      
+
       this.prettySearchMatches = [];
       this.prettySearchIndex = -1;
-      
+
       if (!query) {
         counter.textContent = '0 of 0';
         return;
       }
-      
+
       const elements = document.querySelectorAll('#api-res-tree-output .tree-key, #api-res-tree-output .tree-clickable');
       elements.forEach(el => {
         const text = el.textContent;
         const lowerText = text.toLowerCase();
-        
+
         if (lowerText.includes(query)) {
           const idx = lowerText.indexOf(query);
           const before = text.substring(0, idx);
           const match = text.substring(idx, idx + query.length);
           const after = text.substring(idx + query.length);
-          
+
           el.innerHTML = '';
           if (before) el.appendChild(document.createTextNode(before));
-          
+
           const span = document.createElement('span');
           span.className = 'search-highlight';
           span.textContent = match;
           el.appendChild(span);
-          
+
           if (after) el.appendChild(document.createTextNode(after));
-          
+
           this.prettySearchMatches.push(span);
-          
+
           // Open details ancestors
           let parent = el.closest('details');
           while (parent) {
@@ -3957,7 +3975,7 @@
           }
         }
       });
-      
+
       if (this.prettySearchMatches.length > 0) {
         this.prettySearchIndex = 0;
         this.highlightActivePrettySearch();
@@ -3969,26 +3987,26 @@
     highlightActivePrettySearch() {
       document.querySelectorAll('#api-res-tree-output .search-active').forEach(el => el.classList.remove('search-active'));
       const counter = document.getElementById('api-pretty-search-count');
-      
+
       if (this.prettySearchMatches.length === 0) return;
-      
+
       const active = this.prettySearchMatches[this.prettySearchIndex];
       active.classList.add('search-active');
       active.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
+
       counter.textContent = `${this.prettySearchIndex + 1} of ${this.prettySearchMatches.length}`;
     },
 
     getRequestUrl() {
       const rawUrl = document.getElementById('api-url').value.trim() || 'https://api.example.com';
       const authType = document.getElementById('api-auth-type').value;
-      
+
       let targetUrl = rawUrl;
       if (authType === 'apikey') {
         const key = document.getElementById('api-auth-apikey-key').value.trim();
         const val = document.getElementById('api-auth-apikey-value').value.trim();
         const addTo = document.getElementById('api-auth-apikey-addTo').value;
-        
+
         if (key && addTo === 'query') {
           try {
             const urlObj = new URL(targetUrl.includes('://') ? targetUrl : 'http://' + targetUrl);
@@ -4004,25 +4022,25 @@
 
     compileHeaders() {
       const headers = {};
-      
+
       // 1. Read custom headers table
       const rows = document.querySelectorAll('#api-headers-tbody tr');
       rows.forEach(row => {
         const checkbox = row.querySelector('.table-checkbox');
         const keyInput = row.querySelector('.header-key');
         const valInput = row.querySelector('.header-val');
-        
+
         if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
           headers[keyInput.value.trim()] = valInput ? valInput.value : '';
         }
       });
-      
+
       // 2. Set JSON content type if JSON body active
       const bodyType = document.querySelector('input[name="api-body-type"]:checked')?.value || 'none';
       if (bodyType === 'json') {
         headers['Content-Type'] = 'application/json';
       }
-      
+
       // 3. Inject Auth headers
       const authType = document.getElementById('api-auth-type').value;
       if (authType === 'bearer') {
@@ -4043,23 +4061,23 @@
         const key = document.getElementById('api-auth-apikey-key').value.trim();
         const val = document.getElementById('api-auth-apikey-value').value.trim();
         const addTo = document.getElementById('api-auth-apikey-addTo').value;
-        
+
         if (key && addTo === 'header') {
           headers[key] = val;
         }
       }
-      
+
       return headers;
     },
 
     compileBody() {
       const bodyType = document.querySelector('input[name="api-body-type"]:checked')?.value || 'none';
       if (bodyType === 'none') return null;
-      
+
       if (bodyType === 'json' || bodyType === 'raw') {
         return EditorManager.getValue('api-editor-request', 'api-fallback-request');
       }
-      
+
       if (bodyType === 'form') {
         const formData = new FormData();
         const rows = document.querySelectorAll('#api-form-tbody tr');
@@ -4067,14 +4085,14 @@
           const checkbox = row.querySelector('.table-checkbox');
           const keyInput = row.querySelector('.form-key');
           const valInput = row.querySelector('.form-val');
-          
+
           if (checkbox && checkbox.checked && keyInput && keyInput.value.trim()) {
             formData.append(keyInput.value.trim(), valInput ? valInput.value : '');
           }
         });
         return formData;
       }
-      
+
       return null;
     },
 
@@ -4082,12 +4100,12 @@
       const url = this.getRequestUrl();
       const method = document.getElementById('api-method').value;
       let curl = `curl -X ${method} "${url}"`;
-      
+
       const headers = this.compileHeaders();
       for (const key in headers) {
         curl += ` \\\n  -H "${key}: ${headers[key]}"`;
       }
-      
+
       const body = this.compileBody();
       if (body) {
         if (typeof body === 'string') {
@@ -4106,7 +4124,7 @@
       const method = document.getElementById('api-method').value;
       const headers = this.compileHeaders();
       const body = this.compileBody();
-      
+
       let code = `fetch("${url}", {\n  method: "${method}",\n`;
       if (Object.keys(headers).length > 0) {
         code += `  headers: ${JSON.stringify(headers, null, 4).replace(/\n/g, '\n  ')},\n`;
@@ -4127,7 +4145,7 @@
       const method = document.getElementById('api-method').value.toLowerCase();
       const headers = this.compileHeaders();
       const body = this.compileBody();
-      
+
       let code = `axios({\n  method: "${method}",\n  url: "${url}",\n`;
       if (Object.keys(headers).length > 0) {
         code += `  headers: ${JSON.stringify(headers, null, 4).replace(/\n/g, '\n  ')},\n`;
@@ -4162,7 +4180,7 @@
       const startTime = Date.now();
       const targetUrl = this.getRequestUrl();
 
-      const options = { 
+      const options = {
         method,
         headers: this.compileHeaders()
       };
@@ -4179,7 +4197,7 @@
           const duration = Date.now() - startTime;
           const bodyText = await response.text();
           const byteSize = new Blob([bodyText]).size;
-          
+
           // Hide loading skeleton
           document.getElementById('api-res-loading-state').classList.add('hidden');
 
@@ -4191,7 +4209,7 @@
           const statusBadge = document.getElementById('api-res-status');
           statusBadge.textContent = `${response.status} ${response.statusText || ''}`.trim();
           statusBadge.className = 'status-badge';
-          
+
           if (response.status >= 200 && response.status < 300) {
             statusBadge.classList.add('success');
           } else if (response.status >= 300 && response.status < 400) {
@@ -4205,7 +4223,7 @@
           }
 
           document.getElementById('api-res-time').textContent = `${duration} ms`;
-          
+
           const kbSize = byteSize >= 1024 ? `${(byteSize / 1024).toFixed(1)} KB` : `${byteSize} B`;
           document.getElementById('api-res-size').textContent = kbSize;
 
@@ -4235,7 +4253,7 @@
           if (parsed) {
             const treeDOM = generateInteractiveTreeDOM(parsed);
             treeOutput.appendChild(treeDOM);
-            
+
             // Set up search elements
             this.runPrettySearch();
           } else {
@@ -4258,17 +4276,17 @@
         .catch((err) => {
           // Hide loading skeleton
           document.getElementById('api-res-loading-state').classList.add('hidden');
-          
+
           // Show error state panel
           const errorState = document.getElementById('api-res-error-state');
           errorState.classList.remove('hidden');
-          
+
           const errTitle = document.getElementById('api-error-title');
           const errMessage = document.getElementById('api-error-message');
-          
+
           const msg = err.message || 'An unknown error occurred.';
           errMessage.textContent = msg;
-          
+
           if (msg.includes('CORS') || msg.toLowerCase().includes('fetch') || msg.toLowerCase().includes('network') || msg.toLowerCase().includes('failed')) {
             errTitle.textContent = "CORS blocked — this endpoint doesn't allow browser requests. Use the cURL or Fetch code below to run it from your terminal/server instead.";
             errMessage.textContent = "The request failed due to CORS security restrictions or network connectivity issues. You can run the request directly from your terminal or backend using the generated snippets.";
@@ -4282,7 +4300,7 @@
         });
     },
 
-    restoreSession() {}
+    restoreSession() { }
   };
 
   // 14. ADVANCED UTILITIES
@@ -4351,14 +4369,14 @@
     // FIX: Bug 4 — JWT Decoder with URL-safe base64 decoding, signature warnings, and token expiry checking
     initJWT() {
       const tokenInput = document.getElementById('jwt-token-input');
-      
+
       const decodeJWT = () => {
         const val = tokenInput.value.trim();
-        
+
         const headerCode = document.getElementById('jwt-header-out');
         const payloadCode = document.getElementById('jwt-payload-out');
         const signatureCode = document.getElementById('jwt-sig-out');
-        
+
         // Remove active expiry badge if exists
         const existingBadge = document.getElementById('jwt-payload-badge');
         if (existingBadge) existingBadge.remove();
@@ -4395,17 +4413,17 @@
         try {
           payloadObj = decodeJWTPart(parts[1]);
           payloadCode.textContent = JSON.stringify(payloadObj, null, 2);
-          
+
           // Check Token Expiration (exp unix epoch seconds)
           if (payloadObj && typeof payloadObj.exp === 'number') {
             const expTime = payloadObj.exp;
             const now = Date.now() / 1000;
             const isExpired = now > expTime;
-            
+
             const badge = document.createElement('div');
             badge.id = 'jwt-payload-badge';
             const expDate = new Date(expTime * 1000).toLocaleString();
-            
+
             if (isExpired) {
               badge.className = 'expired';
               badge.textContent = `Token Expired (expired on: ${expDate})`;
@@ -4413,7 +4431,7 @@
               badge.className = 'valid';
               badge.textContent = `Token Valid (expires on: ${expDate})`;
             }
-            
+
             // Insert badge directly above the payload pre block inside the payload card
             payloadCode.parentElement.insertBefore(badge, payloadCode);
           }
@@ -4442,13 +4460,12 @@
         const countEl = document.getElementById('uuid-count-input');
         const count = Math.min(20, Math.max(1, parseInt(countEl.value, 10) || 5));
         const listContainer = document.getElementById('uuid-results-list');
-        
+
         listContainer.innerHTML = '';
-        
+
         for (let i = 0; i < count; i++) {
-          // UUID v4 standard
           const uuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = Math.random() * 16 | 0;
+            const r = (crypto.getRandomValues ? crypto.getRandomValues(new Uint8Array(1))[0] % 16 : Math.random() * 16 | 0);
             const v = c === 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
           });
@@ -4550,7 +4567,7 @@
 
         const repaired = JSONRepairEngine.repair(input);
         EditorManager.checkAndLoadValue('repair-editor-output', 'repair-fallback-output', repaired);
-        
+
         // Validate if repaired is now structurally correct
         const isValid = safeParse(repaired) !== null;
         if (isValid) {
@@ -4561,7 +4578,7 @@
       });
     },
 
-    restoreSession() {}
+    restoreSession() { }
   };
 
   // ==========================================================================
@@ -4570,12 +4587,31 @@
   const AppController = {
     init() {
       Toast.init();
-      
+
+      const path = window.location.pathname.replace(/\/$/, '').split('/').pop();
+      if (path === 'json-formatter') App.activeTool = 'formatter';
+      else if (path === 'json-validator') App.activeTool = 'validator';
+      else if (path === 'json-diff') App.activeTool = 'compare';
+      else if (path === 'json-to-typescript') { App.activeTool = 'converter'; window.INITIAL_CONVERTER = 'typescript'; }
+      else if (path === 'json-to-sql') { App.activeTool = 'converter'; window.INITIAL_CONVERTER = 'sql'; }
+      else if (path === 'json-schema-generator') App.activeTool = 'schemagenerator';
+      else if (path === 'jwt-decoder') { App.activeTool = 'advanced'; window.INITIAL_ADVANCED = 'jwt'; }
+      else if (path === 'uuid-generator') { App.activeTool = 'advanced'; window.INITIAL_ADVANCED = 'uuid'; }
+
+      if (window.INITIAL_CONVERTER) {
+        const formatSelect = document.getElementById('converter-format-select');
+        if (formatSelect) formatSelect.value = window.INITIAL_CONVERTER;
+      }
+
       // Load Monaco and trigger first tool registry initialization
       EditorManager.init(() => {
         this.registerGlobalEvents();
         this.switchTool(App.activeTool);
-        
+
+        if (window.INITIAL_ADVANCED && App.toolRegistry['advanced']) {
+          App.toolRegistry['advanced'].switchSubTab(window.INITIAL_ADVANCED);
+        }
+
         // Restore values across all tools
         Object.keys(App.toolRegistry).forEach(key => {
           App.toolRegistry[key].restoreSession();
@@ -4600,7 +4636,7 @@
       catButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
           const cat = e.target.dataset.category;
-          
+
           // Toggle Active class
           catButtons.forEach(b => {
             b.classList.remove('active');
@@ -4630,7 +4666,7 @@
 
       themeBtn.addEventListener('click', () => {
         App.theme = App.theme === 'dark' ? 'light' : 'dark';
-        
+
         if (App.theme === 'light') {
           document.body.classList.add('light-theme');
           sunIcon.style.display = 'none';
@@ -4646,7 +4682,7 @@
 
         EditorManager.setTheme(App.theme);
         Toast.show(`Switched to ${App.theme} mode`, 'success');
-        
+
         // Save to cache
         localStorage.setItem('toolkit_theme', App.theme);
       });
@@ -4654,7 +4690,7 @@
       // 4. Settings Dropdown & layout switches
       const settingsBtn = document.getElementById('settings-btn');
       const dropdown = document.getElementById('settings-dropdown');
-      
+
       settingsBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         dropdown.classList.toggle('hidden');
@@ -4763,6 +4799,13 @@
             Toast.show('Download shortcut not bound to this tool', 'warning');
           }
         }
+
+        // Ctrl + \ (Toggle Sidebar)
+        if (e.ctrlKey && e.key === '\\') {
+          e.preventDefault();
+          const sidebarToggle = document.getElementById('sidebar-toggle');
+          if (sidebarToggle) sidebarToggle.click();
+        }
       });
 
       // Restore theme preference
@@ -4813,7 +4856,7 @@
   // Run tests unit testing helper in browser console
   App.runTests = function () {
     console.log("%c[TEST RUNNER] Starting Suite...", "color: var(--primary-accent); font-weight: bold;");
-    
+
     // 1. Verify safeParse
     const t1 = safeParse('{"a": 1}');
     console.assert(t1 !== null && t1.a === 1, "safeParse failed to parse valid JSON");
