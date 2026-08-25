@@ -49,7 +49,7 @@
   "settings": {
     "theme": "dark-space",
     "autoSave": true,
-    "activeProxy": "corsproxy.io"
+    "activeProxy": "none"
   }
 }`
   };
@@ -4190,9 +4190,9 @@
         options.body = body;
       }
 
-      const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+      const finalUrl = targetUrl;
 
-      fetch(proxyUrl, options)
+      fetch(finalUrl, options)
         .then(async (response) => {
           const duration = Date.now() - startTime;
           const bodyText = await response.text();
