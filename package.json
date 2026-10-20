@@ -1,0 +1,12 @@
+{
+  "name": "json-developer-toolkit",
+  "version": "1.0.0",
+  "description": "JSON By JD Developer Toolkit — Suite of JSON viewer, validator, compare, schema generator, converters, and advanced utilities.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "author": "Jitendra Dhamdhere",
+  "license": "MIT"
+}

@@ -4664,8 +4664,8 @@
       const sunIcon = themeBtn.querySelector('.sun-icon');
       const moonIcon = themeBtn.querySelector('.moon-icon');
 
-      themeBtn.addEventListener('click', () => {
-        App.theme = App.theme === 'dark' ? 'light' : 'dark';
+      const applyTheme = (theme, showToast = false) => {
+        App.theme = theme;
 
         if (App.theme === 'light') {
           document.body.classList.add('light-theme');
@@ -4681,10 +4681,17 @@
         }
 
         EditorManager.setTheme(App.theme);
-        Toast.show(`Switched to ${App.theme} mode`, 'success');
+        if (showToast) {
+          Toast.show(`Switched to ${App.theme} mode`, 'success');
+        }
 
         // Save to cache
         localStorage.setItem('toolkit_theme', App.theme);
+      };
+
+      themeBtn.addEventListener('click', () => {
+        const nextTheme = App.theme === 'dark' ? 'light' : 'dark';
+        applyTheme(nextTheme, true);
       });
 
       // 4. Settings Dropdown & layout switches
@@ -4808,10 +4815,12 @@
         }
       });
 
-      // Restore theme preference
+      // Restore theme preference (defaults to dark for all users unless explicitly set to light)
       const cachedTheme = localStorage.getItem('toolkit_theme');
-      if (cachedTheme === 'light' || !cachedTheme) {
-        themeBtn.click();
+      if (cachedTheme === 'light') {
+        applyTheme('light', false);
+      } else {
+        applyTheme('dark', false);
       }
     },
 

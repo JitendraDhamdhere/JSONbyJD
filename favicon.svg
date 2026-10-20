@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </linearGradient>
+    <linearGradient id="bracketGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background Squircle -->
+  <rect width="64" height="64" rx="14" fill="url(#bgGrad)"/>
+  <rect x="1.5" y="1.5" width="61" height="61" rx="12.5" fill="none" stroke="#10b981" stroke-width="2" stroke-opacity="0.5"/>
+
+  <!-- Left Bracket { -->
+  <path d="M16 15 C11 15 9 18 9 23 L9 27 C9 30 7 32 4 32 C7 32 9 34 9 37 L9 41 C9 46 11 49 16 49" 
+        fill="none" stroke="url(#bracketGrad)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Right Bracket } -->
+  <path d="M48 15 C53 15 55 18 55 23 L55 27 C55 30 57 32 60 32 C57 32 55 34 55 37 L55 41 C55 46 53 49 48 49" 
+        fill="none" stroke="url(#bracketGrad)" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Center Letters "JD" -->
+  <!-- J -->
+  <path d="M24.5 24 L28 24 L28 37 C28 40.2 26 42 22.8 42 C20.8 42 19.5 41.2 19 40.2" 
+        fill="none" stroke="#f4f4f5" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- D -->
+  <path d="M34 24 L38.5 24 C42.5 24 45 26.5 45 33 C45 39.5 42.5 42 38.5 42 L34 42 Z" 
+        fill="none" stroke="#34d399" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
